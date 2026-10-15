@@ -25,10 +25,6 @@ class GlassSettingsStore(context: Context) {
     var settings by mutableStateOf(load())
         private set
 
-    /** Root 模式开关。 */
-    var rootMode by mutableStateOf(sp.getBoolean("rootMode", false))
-        private set
-
     private fun load() = GlassSettings(
         opacity = sp.getFloat("opacity", 0.65f),
         bgImageUri = sp.getString("bgImageUri", null),
@@ -48,20 +44,13 @@ class GlassSettingsStore(context: Context) {
             .apply()
     }
 
-    fun applyRootMode(on: Boolean) {
-        rootMode = on
-        sp.edit().putBoolean("rootMode", on).apply()
-    }
-
-    fun reset() {
-        update(GlassSettings())
-        applyRootMode(false)
-    }
+    fun reset() = update(GlassSettings())
 }
 
 val LocalGlassSettings = compositionLocalOf { GlassSettings() }
 val LocalGlassStore = compositionLocalOf<GlassSettingsStore?> { null }
 
+/** 解码图片并降采样，避免大图直接爆内存。 */
 fun loadScaledBitmap(context: Context, uri: Uri, maxDim: Int = 1600): Bitmap? {
     return try {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
