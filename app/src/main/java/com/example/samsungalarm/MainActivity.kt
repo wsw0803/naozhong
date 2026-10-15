@@ -14,7 +14,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,15 +41,15 @@ class MainActivity : ComponentActivity() {
         val store = GlassSettingsStore(applicationContext)
 
         setContent {
-            val settings = store.settings
-            AlarmTheme {
-                CompositionLocalProvider(
-                    LocalGlassSettings provides settings,
-                    LocalGlassStore provides store
-                ) {
+            // 主题必须放在 CompositionLocalProvider 里面，
+            // 否则 isDark() 读不到用户选择的深/浅色设置。
+            CompositionLocalProvider(
+                LocalGlassSettings provides store.settings,
+                LocalGlassStore provides store
+            ) {
+                AlarmTheme {
                     var showSettings by remember { mutableStateOf(false) }
 
-                    // 手势/返回键：在设置页时先回主界面，而不是直接退出应用
                     BackHandler(enabled = showSettings) {
                         showSettings = false
                     }
