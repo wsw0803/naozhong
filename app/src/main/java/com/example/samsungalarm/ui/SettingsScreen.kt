@@ -172,7 +172,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         ThemeChip(if (rootMode) "已开启" else "未开启", rootMode) {
                             rootMode = !rootMode
-                            store?.setRootMode(rootMode)
+                            store?.applyRootMode(rootMode)
                         }
                         TextButton(onClick = {
                             // 检测设备是否可用 root
