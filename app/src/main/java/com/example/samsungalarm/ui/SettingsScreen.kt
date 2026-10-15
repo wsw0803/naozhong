@@ -59,10 +59,8 @@ import com.example.samsungalarm.ui.theme.glassFill
 import com.example.samsungalarm.ui.theme.glassShadow
 import com.example.samsungalarm.ui.theme.textPrimary
 import com.example.samsungalarm.ui.theme.textSecondary
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
-/** 外观设置 + 权限自检 + Root 模式。 */
+/** 外观设置 + 权限自检。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
@@ -78,12 +76,10 @@ fun SettingsScreen(onBack: () -> Unit) {
         }
     }
 
-    // 权限状态：每次进入都重查一遍
     var notifOk by remember { mutableStateOf(false) }
     var exactOk by remember { mutableStateOf(false) }
     var overlayOk by remember { mutableStateOf(false) }
     var batteryOk by remember { mutableStateOf(false) }
-    var rootMode by remember { mutableStateOf(store?.rootMode ?: false) }
 
     fun refreshPerms() {
         notifOk = PermissionUtils.hasNotification(ctx)
@@ -138,47 +134,15 @@ fun SettingsScreen(onBack: () -> Unit) {
                     Text("缺哪个点哪项去开，开完回来会自动刷新", fontSize = 11.sp, color = textSecondary())
                     Spacer(Modifier.height(10.dp))
 
-                    PermRow("通知权限", notifOk) {
-                        PermissionUtils.openNotificationSettings(ctx)
-                    }
-                    PermRow("精确闹钟", exactOk) {
-                        PermissionUtils.openExactAlarmSettings(ctx)
-                    }
-                    PermRow("悬浮窗", overlayOk) {
-                        PermissionUtils.openOverlaySettings(ctx)
-                    }
-                    PermRow("后台运行（电池优化白名单）", batteryOk) {
-                        PermissionUtils.openBatterySettings(ctx)
-                    }
-                    PermRow("后台弹出界面（部分国产 ROM）", null) {
-                        PermissionUtils.openAppDetailSettings(ctx)
-                    }
+                    PermRow("通知权限", notifOk) { PermissionUtils.openNotificationSettings(ctx) }
+                    PermRow("精确闹钟", exactOk) { PermissionUtils.openExactAlarmSettings(ctx) }
+                    PermRow("悬浮窗", overlayOk) { PermissionUtils.openOverlaySettings(ctx) }
+                    PermRow("后台运行（电池优化白名单）", batteryOk) { PermissionUtils.openBatterySettings(ctx) }
+                    PermRow("后台弹出界面（部分国产 ROM）", null) { PermissionUtils.openAppDetailSettings(ctx) }
 
                     Spacer(Modifier.height(6.dp))
                     TextButton(onClick = { refreshPerms() }) {
                         Text("重新检测", color = GlassPrimary)
-                    }
-                }
-
-                // ---- Root 模式 ----
-                GlassPanel {
-                    Text("Root 模式", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textPrimary())
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        "开启后部分系统级操作会尝试用 su 提权执行，需要设备已 Root",
-                        fontSize = 11.sp, color = textSecondary()
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ThemeChip(if (rootMode) "已开启" else "未开启", rootMode) {
-                            rootMode = !rootMode
-                            store?.applyRootMode(rootMode)
-                        }
-                        TextButton(onClick = {
-                            // 检测设备是否可用 root
-                        }) {
-                            Text("状态随系统", color = textSecondary())
-                        }
                     }
                 }
 
