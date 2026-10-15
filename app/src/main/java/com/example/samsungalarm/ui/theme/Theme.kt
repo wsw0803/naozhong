@@ -79,8 +79,15 @@ private val DarkColors = darkColorScheme(
     onSurfaceVariant = DarkTextSecondary
 )
 
+/** 当前是否深色：优先用设置里的手动选择，默认跟随系统。 */
 @Composable
-fun isDark(): Boolean = isSystemInDarkTheme()
+fun isDark(): Boolean {
+    return when (LocalGlassSettings.current.darkMode) {
+        1 -> false
+        2 -> true
+        else -> isSystemInDarkTheme()
+    }
+}
 
 /** 卡片填充：受设置里的不透明度影响。 */
 @Composable
@@ -169,7 +176,7 @@ fun AppBackground() {
 
 @Composable
 fun AlarmTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = isDark(),
     content: @Composable () -> Unit
 ) {
     val colors = if (darkTheme) DarkColors else LightColors
