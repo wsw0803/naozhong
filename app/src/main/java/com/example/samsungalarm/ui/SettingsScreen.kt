@@ -5,6 +5,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,11 +44,10 @@ import com.example.samsungalarm.ui.theme.GlassPrimary
 import com.example.samsungalarm.ui.theme.glassBorder
 import com.example.samsungalarm.ui.theme.glassFill
 import com.example.samsungalarm.ui.theme.glassShadow
-import com.example.samsungalarm.ui.theme.isDark
 import com.example.samsungalarm.ui.theme.textPrimary
 import com.example.samsungalarm.ui.theme.textSecondary
 
-/** 外观设置：调玻璃透明度、换背景图。 */
+/** 外观设置：主题模式、玻璃透明度、背景图、圆角。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
@@ -92,6 +92,29 @@ fun SettingsScreen(onBack: () -> Unit) {
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
+                // ---- 主题模式 ----
+                GlassPanel {
+                    Text("主题模式", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textPrimary())
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "控制整体配色和字体颜色",
+                        fontSize = 11.sp,
+                        color = textSecondary()
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ThemeChip("跟随系统", s.darkMode == 0) {
+                            store?.update(s.copy(darkMode = 0))
+                        }
+                        ThemeChip("浅色", s.darkMode == 1) {
+                            store?.update(s.copy(darkMode = 1))
+                        }
+                        ThemeChip("深色", s.darkMode == 2) {
+                            store?.update(s.copy(darkMode = 2))
+                        }
+                    }
+                }
+
                 GlassPanel {
                     Text("玻璃透明度", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textPrimary())
                     Spacer(Modifier.height(2.dp))
@@ -201,6 +224,26 @@ fun SettingsScreen(onBack: () -> Unit) {
                 Spacer(Modifier.height(30.dp))
             }
         }
+    }
+}
+
+/** 主题模式选择小片。 */
+@Composable
+private fun ThemeChip(text: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (selected) GlassPrimary else glassFill())
+            .border(BorderStroke(1.dp, if (selected) GlassPrimary else glassBorder()), RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 9.dp)
+    ) {
+        Text(
+            text,
+            fontSize = 13.sp,
+            color = if (selected) Color.White else textSecondary(),
+            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal
+        )
     }
 }
 
