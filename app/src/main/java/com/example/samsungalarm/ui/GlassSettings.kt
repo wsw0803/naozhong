@@ -11,15 +11,10 @@ import androidx.compose.runtime.setValue
 
 /** 玻璃外观设置，用户可调。 */
 data class GlassSettings(
-    /** 卡片不透明度：0.15 近乎全透 ~ 1.0 实心 */
     val opacity: Float = 0.65f,
-    /** 自定义背景图 URI；null 表示用默认渐变加光斑 */
     val bgImageUri: String? = null,
-    /** 背景图压暗程度：0 原图 ~ 0.8 很暗，保证文字可读 */
     val bgDim: Float = 0.35f,
-    /** 卡片圆角，单位 dp */
     val corner: Float = 22f,
-    /** 主题模式：0 跟随系统，1 浅色，2 深色 */
     val darkMode: Int = 0
 )
 
@@ -30,7 +25,7 @@ class GlassSettingsStore(context: Context) {
     var settings by mutableStateOf(load())
         private set
 
-    /** Root 模式开关（独立存储，不进 GlassSettings 数据类）。 */
+    /** Root 模式开关。 */
     var rootMode by mutableStateOf(sp.getBoolean("rootMode", false))
         private set
 
@@ -53,21 +48,20 @@ class GlassSettingsStore(context: Context) {
             .apply()
     }
 
-    fun setRootMode(on: Boolean) {
+    fun applyRootMode(on: Boolean) {
         rootMode = on
         sp.edit().putBoolean("rootMode", on).apply()
     }
 
     fun reset() {
         update(GlassSettings())
-        setRootMode(false)
+        applyRootMode(false)
     }
 }
 
 val LocalGlassSettings = compositionLocalOf { GlassSettings() }
 val LocalGlassStore = compositionLocalOf<GlassSettingsStore?> { null }
 
-/** 解码图片并降采样，避免大图直接爆内存。 */
 fun loadScaledBitmap(context: Context, uri: Uri, maxDim: Int = 1600): Bitmap? {
     return try {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
