@@ -23,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.IntOffset
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.samsungalarm.ui.AlarmViewModel
@@ -60,7 +61,7 @@ class MainActivity : ComponentActivity() {
                     AnimatedContent(
                         targetState = showSettings,
                         transitionSpec = {
-                            val spec = tween<Int>(durationMillis = 320)
+                            val spec = tween<IntOffset>(durationMillis = 320)
                             if (targetState) {
                                 slideInHorizontally(spec) { it } togetherWith
                                         slideOutHorizontally(spec) { -it }
