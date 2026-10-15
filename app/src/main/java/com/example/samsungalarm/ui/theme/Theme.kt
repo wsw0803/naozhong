@@ -89,20 +89,21 @@ fun isDark(): Boolean {
     }
 }
 
-/** 卡片填充：受设置里的不透明度影响。 */
+/** 卡片填充：不透明度滑块直接决定 alpha，低值时真的接近全透。 */
 @Composable
 fun glassFill(): Color {
     val s = LocalGlassSettings.current
-    return if (isDark()) Color.White.copy(alpha = 0.03f + s.opacity * 0.17f)
-    else Color.White.copy(alpha = 0.22f + s.opacity * 0.72f)
+    // 低透过时更接近全透明，高透过时接近实心
+    return if (isDark()) Color.White.copy(alpha = 0.02f + s.opacity * 0.28f)
+    else Color.White.copy(alpha = 0.04f + s.opacity * 0.66f)
 }
 
-/** 卡片描边：不透明度越高，描边越清晰。 */
+/** 卡片描边：跟随不透明度。 */
 @Composable
 fun glassBorder(): Color {
     val s = LocalGlassSettings.current
-    return if (isDark()) Color.White.copy(alpha = 0.10f + s.opacity * 0.22f)
-    else Color.White.copy(alpha = 0.30f + s.opacity * 0.50f)
+    return if (isDark()) Color.White.copy(alpha = 0.04f + s.opacity * 0.26f)
+    else Color.White.copy(alpha = 0.12f + s.opacity * 0.50f)
 }
 
 @Composable
