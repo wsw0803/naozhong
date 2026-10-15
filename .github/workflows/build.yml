@@ -14,9 +14,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Extract project
-        run: tar xzf SamsungAlarm.tar.gz
-
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -29,10 +26,10 @@ jobs:
           gradle-version: '8.7'
 
       - name: Build debug APK
-        run: cd SamsungAlarm && gradle assembleDebug --no-daemon --stacktrace
+        run: gradle assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: SamsungAlarm-debug
-          path: SamsungAlarm/app/build/outputs/apk/debug/*.apk
+          path: app/build/outputs/apk/debug/*.apk
