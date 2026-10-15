@@ -3,6 +3,7 @@ package com.example.samsungalarm.ui
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
@@ -69,26 +71,28 @@ fun GroupScreen(
 ) {
     val groups by vm.grouped.collectAsStateWithLifecycle()
     var showAddGroup by remember { mutableStateOf(false) }
-    var editing by remember { mutableStateOf<Alarm?>(null) }
-    var creatingInGroup by remember { mutableStateOf<Long?>(null) }
+    var openedGroupId by remember { mutableStateOf<Long?>(null) }
+
+    val opened = groups.firstOrNull { it.group.id == openedGroupId }
+    if (opened != null) {
+        GroupDetailScreen(
+            vm = vm,
+            entry = opened,
+            onBack = { openedGroupId = null }
+        )
+        return
+    }
 
     Box(Modifier.fillMaxSize()) {
         AppBackground()
-
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
                 TopAppBar(
-                    title = {
-                        Text("闹钟", fontWeight = FontWeight.Bold, color = textPrimary())
-                    },
+                    title = { Text("闹钟分组", fontWeight = FontWeight.Bold, color = textPrimary()) },
                     actions = {
                         IconButton(onClick = onOpenSettings) {
-                            Icon(
-                                Icons.Default.Palette,
-                                contentDescription = "外观设置",
-                                tint = textPrimary()
-                            )
+                            Icon(Icons.Default.Palette, contentDescription = "外观设置", tint = textPrimary())
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -111,14 +115,10 @@ fun GroupScreen(
             ) {
                 item { Spacer(Modifier.height(2.dp)) }
                 items(groups, key = { it.group.id }) { entry ->
-                    GlassGroupCard(
+                    GroupCard(
                         entry = entry,
+                        onOpen = { openedGroupId = entry.group.id },
                         onToggleGroup = { on -> vm.toggleGroup(entry.group, on) },
-                        onToggleAlarm = { a, on -> vm.toggleAlarm(a, on) },
-                        onDuplicate = { a -> vm.duplicateAlarm(a) },
-                        onDeleteAlarm = { a -> vm.deleteAlarm(a) },
-                        onEditAlarm = { a -> editing = a },
-                        onAddAlarm = { creatingInGroup = entry.group.id },
                         onRename = { name -> vm.renameGroup(entry.group, name) },
                         onDeleteGroup = { vm.deleteGroup(entry.group) }
                     )
@@ -136,43 +136,21 @@ fun GroupScreen(
             onConfirm = { name -> vm.addGroup(name); showAddGroup = false }
         )
     }
-
-    val targetGroup = creatingInGroup
-    if (targetGroup != null) {
-        AlarmEditDialog(
-            alarm = null,
-            groupId = targetGroup,
-            onDismiss = { creatingInGroup = null },
-            onSave = { a -> vm.saveAlarm(a); creatingInGroup = null }
-        )
-    }
-
-    val editTarget = editing
-    if (editTarget != null) {
-        AlarmEditDialog(
-            alarm = editTarget,
-            groupId = editTarget.groupId,
-            onDismiss = { editing = null },
-            onSave = { a -> vm.saveAlarm(a); editing = null }
-        )
-    }
 }
 
+/** 分组卡片（主页）：只显示分组，不显示具体闹钟。 */
 @Composable
-private fun GlassGroupCard(
+private fun GroupCard(
     entry: GroupWithAlarms,
+    onOpen: () -> Unit,
     onToggleGroup: (Boolean) -> Unit,
-    onToggleAlarm: (Alarm, Boolean) -> Unit,
-    onDuplicate: (Alarm) -> Unit,
-    onDeleteAlarm: (Alarm) -> Unit,
-    onEditAlarm: (Alarm) -> Unit,
-    onAddAlarm: () -> Unit,
     onRename: (String) -> Unit,
     onDeleteGroup: () -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(LocalGlassSettings.current.corner.dp)
+    val count = entry.alarms.size
 
     Column(
         modifier = Modifier
@@ -181,56 +159,33 @@ private fun GlassGroupCard(
             .clip(shape)
             .background(glassFill())
             .border(BorderStroke(1.dp, glassBorder()), shape)
+            .clickable(onClick = onOpen)
             .padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(entry.group.name, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = textPrimary())
                 Text(
-                    if (entry.group.enabled) "已开启" else "已关闭",
+                    (if (entry.group.enabled) "已开启" else "已关闭") + " · " + count + " 个闹钟",
                     fontSize = 12.sp,
                     color = textSecondary()
                 )
             }
-            IconButton(onClick = { menu = true }) {
-                Icon(Icons.Default.MoreVert, contentDescription = "更多", tint = textSecondary())
-            }
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                DropdownMenuItem(text = { Text("添加闹钟") }, onClick = { menu = false; onAddAlarm() })
-                DropdownMenuItem(text = { Text("重命名分组") }, onClick = { menu = false; renaming = true })
-                DropdownMenuItem(text = { Text("删除分组") }, onClick = { menu = false; onDeleteGroup() })
+            Box {
+                IconButton(onClick = { menu = true }) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "更多", tint = textSecondary())
+                }
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    DropdownMenuItem(text = { Text("进入分组") }, onClick = { menu = false; onOpen() })
+                    DropdownMenuItem(text = { Text("重命名分组") }, onClick = { menu = false; renaming = true })
+                    DropdownMenuItem(text = { Text("删除分组") }, onClick = { menu = false; onDeleteGroup() })
+                }
             }
             Switch(
                 checked = entry.group.enabled,
                 onCheckedChange = onToggleGroup,
                 colors = SwitchDefaults.colors(checkedTrackColor = GlassPrimary)
             )
-        }
-
-        Spacer(Modifier.height(6.dp))
-
-        if (entry.alarms.isEmpty()) {
-            Text(
-                "这个分组还没有闹钟",
-                fontSize = 13.sp,
-                color = textSecondary(),
-                modifier = Modifier.padding(vertical = 8.dp)
-            )
-        } else {
-            entry.alarms.forEach { alarm ->
-                GlassAlarmRow(
-                    alarm = alarm,
-                    groupEnabled = entry.group.enabled,
-                    onToggle = { on -> onToggleAlarm(alarm, on) },
-                    onDuplicate = { onDuplicate(alarm) },
-                    onDelete = { onDeleteAlarm(alarm) },
-                    onEdit = { onEditAlarm(alarm) }
-                )
-            }
-        }
-
-        TextButton(onClick = onAddAlarm, modifier = Modifier.padding(top = 4.dp)) {
-            Text("＋ 添加闹钟", color = GlassPrimary)
         }
     }
 
@@ -240,6 +195,119 @@ private fun GlassGroupCard(
             initial = entry.group.name,
             onDismiss = { renaming = false },
             onConfirm = { name -> onRename(name); renaming = false }
+        )
+    }
+}
+
+/** 分组详情页：显示该分组下的闹钟。 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GroupDetailScreen(
+    vm: AlarmViewModel,
+    entry: GroupWithAlarms,
+    onBack: () -> Unit
+) {
+    var editing by remember { mutableStateOf<Alarm?>(null) }
+    var creating by remember { mutableStateOf(false) }
+    var menu by remember { mutableStateOf(false) }
+    var renaming by remember { mutableStateOf(false) }
+
+    Box(Modifier.fillMaxSize()) {
+        AppBackground()
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                TopAppBar(
+                    title = { Text(entry.group.name, fontWeight = FontWeight.Bold, color = textPrimary()) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = textPrimary())
+                        }
+                    },
+                    actions = {
+                        Box {
+                            IconButton(onClick = { menu = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "更多", tint = textPrimary())
+                            }
+                            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                                DropdownMenuItem(text = { Text("重命名分组") }, onClick = { menu = false; renaming = true })
+                                DropdownMenuItem(text = { Text("删除分组") }, onClick = { menu = false; vm.deleteGroup(entry.group); onBack() })
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                )
+            },
+            floatingActionButton = {
+                FloatingActionButton(
+                    onClick = { creating = true },
+                    containerColor = GlassPrimary,
+                    contentColor = Color.White
+                ) { Icon(Icons.Default.Add, contentDescription = "添加闹钟") }
+            }
+        ) { inner ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(inner)
+                    .padding(horizontal = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item { Spacer(Modifier.height(2.dp)) }
+                if (entry.alarms.isEmpty()) {
+                    item {
+                        val shape = RoundedCornerShape(LocalGlassSettings.current.corner.dp)
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(shape)
+                                .background(glassFill())
+                                .border(BorderStroke(1.dp, glassBorder()), shape)
+                                .padding(16.dp)
+                        ) {
+                            Text("这个分组还没有闹钟", fontSize = 14.sp, color = textSecondary())
+                        }
+                    }
+                } else {
+                    items(entry.alarms, key = { it.id }) { alarm ->
+                        GlassAlarmRow(
+                            alarm = alarm,
+                            groupEnabled = entry.group.enabled,
+                            onToggle = { on -> vm.toggleAlarm(alarm, on) },
+                            onDuplicate = { vm.duplicateAlarm(alarm) },
+                            onDelete = { vm.deleteAlarm(alarm) },
+                            onEdit = { editing = alarm }
+                        )
+                    }
+                }
+                item { Spacer(Modifier.height(80.dp)) }
+            }
+        }
+    }
+
+    if (creating) {
+        AlarmEditDialog(
+            alarm = null,
+            groupId = entry.group.id,
+            onDismiss = { creating = false },
+            onSave = { a -> vm.saveAlarm(a); creating = false }
+        )
+    }
+    val target = editing
+    if (target != null) {
+        AlarmEditDialog(
+            alarm = target,
+            groupId = target.groupId,
+            onDismiss = { editing = null },
+            onSave = { a -> vm.saveAlarm(a); editing = null }
+        )
+    }
+    if (renaming) {
+        NameDialog(
+            title = "重命名分组",
+            initial = entry.group.name,
+            onDismiss = { renaming = false },
+            onConfirm = { name -> vm.renameGroup(entry.group, name); renaming = false }
         )
     }
 }
@@ -255,14 +323,15 @@ private fun GlassAlarmRow(
     onEdit: () -> Unit
 ) {
     val active = alarm.enabled && groupEnabled
+    val shape = RoundedCornerShape(14.dp)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 3.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (active) glassFill() else Color.Transparent)
-            .padding(horizontal = 6.dp, vertical = 6.dp)
+            .clip(shape)
+            .background(glassFill())
+            .border(BorderStroke(1.dp, glassBorder()), shape)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
         Column(Modifier.weight(1f)) {
             Text(
