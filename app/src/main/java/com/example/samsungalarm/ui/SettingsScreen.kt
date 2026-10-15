@@ -74,7 +74,6 @@ fun SettingsScreen(onBack: () -> Unit) {
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            // 持久化读取权限，否则重启后背景图会丢失
             try {
                 ctx.contentResolver.takePersistableUriPermission(
                     uri,
@@ -261,7 +260,6 @@ private fun openUrl(ctx: Context, url: String) {
     }
 }
 
-/** 一行权限状态：ok 为 null 表示无法标准检测。 */
 @Composable
 private fun PermRow(name: String, ok: Boolean?, onClick: () -> Unit) {
     Row(
@@ -303,7 +301,7 @@ private fun ThemeChip(text: String, selected: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun GlassPanel(content: @Composable () -> Unit) {
-    val shape = RoundedCornerShape(18.dp)
+    val shape = RoundedCornerShape(LocalGlassSettings.current.corner.dp)
     Column(
         modifier = Modifier
             .fillMaxWidth()

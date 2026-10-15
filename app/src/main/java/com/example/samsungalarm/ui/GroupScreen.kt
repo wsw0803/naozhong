@@ -138,7 +138,6 @@ fun GroupScreen(
     }
 }
 
-/** 分组卡片（主页）：只显示分组，不显示具体闹钟。 */
 @Composable
 private fun GroupCard(
     entry: GroupWithAlarms,
@@ -199,7 +198,6 @@ private fun GroupCard(
     }
 }
 
-/** 分组详情页：显示该分组下的闹钟。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun GroupDetailScreen(
@@ -312,7 +310,6 @@ private fun GroupDetailScreen(
     }
 }
 
-/** 单条闹钟：玻璃质感的行内卡片。 */
 @Composable
 private fun GlassAlarmRow(
     alarm: Alarm,
@@ -323,7 +320,7 @@ private fun GlassAlarmRow(
     onEdit: () -> Unit
 ) {
     val active = alarm.enabled && groupEnabled
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(LocalGlassSettings.current.corner.dp)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
