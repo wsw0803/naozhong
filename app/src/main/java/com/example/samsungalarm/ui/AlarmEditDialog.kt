@@ -54,7 +54,7 @@ import com.example.samsungalarm.ui.theme.textSecondary
 
 private val ITEM_H = 46.dp
 
-/** 新建 / 编辑闹钟：滚轮与直接输入两种方式，可选铃声。 */
+/** 新建 / 编辑闹钟：滚轮和直接输入同页显示，两边双向同步。 */
 @Composable
 fun AlarmEditDialog(
     alarm: Alarm?,
@@ -68,8 +68,9 @@ fun AlarmEditDialog(
     var vibrate by remember { mutableStateOf(alarm?.vibrate ?: true) }
     var days by remember { mutableStateOf(alarm?.repeatDays ?: emptySet()) }
     var ringtone by remember { mutableStateOf(alarm?.ringtoneUri) }
-    var mode by remember { mutableStateOf(0) } // 0=滚轮 1=直接输入
-    var textTime by remember { mutableStateOf("") }
+    var textTime by remember {
+        mutableStateOf(String.format("%02d:%02d", alarm?.hour ?: 7, alarm?.minute ?: 0))
+    }
 
     val ctx = LocalContext.current
     val picker = rememberLauncherForActivityResult(
@@ -79,6 +80,19 @@ fun AlarmEditDialog(
             @Suppress("DEPRECATION")
             val uri = res.data?.getParcelableExtra<Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
             ringtone = uri?.toString()
+        }
+    }
+
+    /** 输入框解析：合法才回写滚轮值。 */
+    fun applyText() {
+        val parts = textTime.trim().split(":", "：")
+        if (parts.size == 2) {
+            val ph = parts[0].trim().toIntOrNull()
+            val pm = parts[1].trim().toIntOrNull()
+            if (ph != null && pm != null && ph in 0..23 && pm in 0..59) {
+                hour = ph
+                minute = pm
+            }
         }
     }
 
@@ -93,58 +107,59 @@ fun AlarmEditDialog(
         },
         text = {
             Column {
-                // ---- 切换标签 ----
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ModeTab("滚轮调节", mode == 0) { mode = 0 }
-                    ModeTab("直接输入", mode == 1) {
-                        textTime = String.format("%02d:%02d", hour, minute)
-                        mode = 1
-                    }
+                // ---- 滚轮（唯一真相源：hour / minute）----
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Wheel(
+                        count = 24,
+                        value = hour,
+                        modifier = Modifier.width(76.dp),
+                        onChanged = {
+                            hour = it
+                            textTime = String.format("%02d:%02d", hour, minute)
+                        }
+                    )
+                    Text(
+                        ":",
+                        fontSize = 30.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = textPrimary(),
+                        modifier = Modifier.padding(horizontal = 10.dp)
+                    )
+                    Wheel(
+                        count = 60,
+                        value = minute,
+                        modifier = Modifier.width(76.dp),
+                        onChanged = {
+                            minute = it
+                            textTime = String.format("%02d:%02d", hour, minute)
+                        }
+                    )
                 }
+
                 Spacer(Modifier.height(12.dp))
 
-                if (mode == 0) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Wheel(
-                            count = 24,
-                            initial = hour,
-                            modifier = Modifier.width(76.dp),
-                            onChanged = { hour = it }
-                        )
-                        Text(
-                            ":",
-                            fontSize = 30.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = textPrimary(),
-                            modifier = Modifier.padding(horizontal = 10.dp)
-                        )
-                        Wheel(
-                            count = 60,
-                            initial = minute,
-                            modifier = Modifier.width(76.dp),
-                            onChanged = { minute = it }
-                        )
-                    }
-                } else {
-                    OutlinedTextField(
-                        value = textTime,
-                        onValueChange = { textTime = it },
-                        singleLine = true,
-                        label = { Text("小时:分钟") },
-                        placeholder = { Text("例如 07:30") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "格式 24 小时制，中间用冒号隔开",
-                        fontSize = 11.sp,
-                        color = textSecondary()
-                    )
-                }
+                // ---- 直接输入（与滚轮同页）----
+                OutlinedTextField(
+                    value = textTime,
+                    onValueChange = {
+                        textTime = it
+                        applyText()
+                    },
+                    singleLine = true,
+                    label = { Text("直接输入（小时:分钟）") },
+                    placeholder = { Text("例如 07:30") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "24 小时制，中间用冒号隔开；改这里滚轮会跟着走",
+                    fontSize = 11.sp,
+                    color = textSecondary()
+                )
 
                 Spacer(Modifier.height(16.dp))
 
@@ -218,24 +233,12 @@ fun AlarmEditDialog(
         },
         confirmButton = {
             TextButton(onClick = {
-                var h = hour
-                var m = minute
-                if (mode == 1) {
-                    val parts = textTime.trim().split(":", "：")
-                    if (parts.size == 2) {
-                        val ph = parts[0].trim().toIntOrNull()
-                        val pm = parts[1].trim().toIntOrNull()
-                        if (ph != null && pm != null && ph in 0..23 && pm in 0..59) {
-                            h = ph
-                            m = pm
-                        }
-                    }
-                }
-                val base = alarm ?: Alarm(groupId = groupId, hour = h, minute = m)
+                applyText()
+                val base = alarm ?: Alarm(groupId = groupId, hour = hour, minute = minute)
                 onSave(
                     base.copy(
-                        hour = h,
-                        minute = m,
+                        hour = hour,
+                        minute = minute,
                         label = label.trim(),
                         vibrate = vibrate,
                         repeatDays = days,
@@ -249,25 +252,6 @@ fun AlarmEditDialog(
         },
         containerColor = if (isDark()) Color(0xFF1B1F2A) else Color(0xFFF7F9FC)
     )
-}
-
-/** 顶部两个切换标签。 */
-@Composable
-private fun ModeTab(text: String, selected: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (selected) GlassPrimary else glassFill())
-            .clickable { onClick() }
-            .padding(horizontal = 18.dp, vertical = 9.dp)
-    ) {
-        Text(
-            text,
-            fontSize = 13.sp,
-            color = if (selected) Color.White else textSecondary(),
-            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal
-        )
-    }
 }
 
 /** 星期小圆片。 */
@@ -293,15 +277,22 @@ private fun DayChip(label: String, selected: Boolean, onClick: () -> Unit) {
 /**
  * 滚轮选择器。
  * 用 LazyColumn 的吸附滚动实现，中间那道就是当前值。
+ * value 变化时（比如用户在输入框改时间）会同步滚动过去。
  */
 @Composable
 private fun Wheel(
     count: Int,
-    initial: Int,
+    value: Int,
     modifier: Modifier = Modifier,
     onChanged: (Int) -> Unit
 ) {
-    val state = rememberLazyListState(initialFirstVisibleItemIndex = initial)
+    val state = rememberLazyListState(initialFirstVisibleItemIndex = value)
+
+    LaunchedEffect(value) {
+        if (!state.isScrollInProgress && state.firstVisibleItemIndex != value) {
+            state.scrollToItem(value)
+        }
+    }
 
     LaunchedEffect(state) {
         snapshotFlow { state.isScrollInProgress }
@@ -315,7 +306,6 @@ private fun Wheel(
     }
 
     Box(modifier.height(ITEM_H * 5), contentAlignment = Alignment.Center) {
-        // 中间高亮条
         Box(
             modifier = Modifier
                 .fillMaxWidth()
