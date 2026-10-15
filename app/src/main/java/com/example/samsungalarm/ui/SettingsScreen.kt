@@ -60,6 +60,8 @@ import com.example.samsungalarm.ui.theme.glassShadow
 import com.example.samsungalarm.ui.theme.textPrimary
 import com.example.samsungalarm.ui.theme.textSecondary
 
+private const val GITHUB_URL = "https://github.com/wsw0803/naozhong"
+
 /** 外观设置 + 权限自检。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -221,6 +223,25 @@ fun SettingsScreen(onBack: () -> Unit) {
                     }
                 }
 
+                // ---- 关于 ----
+                GlassPanel {
+                    Text("关于", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textPrimary())
+                    Spacer(Modifier.height(2.dp))
+                    Text("闹钟 · 开源项目", fontSize = 11.sp, color = textSecondary())
+                    Spacer(Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { openUrl(ctx, GITHUB_URL) }
+                            .padding(vertical = 9.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("GitHub 项目主页", fontSize = 13.sp, color = textPrimary(), modifier = Modifier.weight(1f))
+                        Text("前往 →", fontSize = 13.sp, color = GlassPrimary, fontWeight = FontWeight.Medium)
+                    }
+                }
+
                 TextButton(onClick = { store?.reset() }, modifier = Modifier.fillMaxWidth()) {
                     Text("恢复全部默认", color = textSecondary())
                 }
@@ -228,6 +249,15 @@ fun SettingsScreen(onBack: () -> Unit) {
                 Spacer(Modifier.height(30.dp))
             }
         }
+    }
+}
+
+private fun openUrl(ctx: Context, url: String) {
+    try {
+        ctx.startActivity(
+            Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+    } catch (_: Exception) {
     }
 }
 
