@@ -51,6 +51,7 @@ import com.example.samsungalarm.ui.theme.glassFill
 import com.example.samsungalarm.ui.theme.isDark
 import com.example.samsungalarm.ui.theme.textPrimary
 import com.example.samsungalarm.ui.theme.textSecondary
+import java.util.Calendar
 
 private val ITEM_H = 46.dp
 
@@ -62,14 +63,19 @@ fun AlarmEditDialog(
     onDismiss: () -> Unit,
     onSave: (Alarm) -> Unit
 ) {
-    var hour by remember { mutableStateOf(alarm?.hour ?: 7) }
-    var minute by remember { mutableStateOf(alarm?.minute ?: 0) }
+    // 新建时读取当前时间作为默认值
+    val now = remember { Calendar.getInstance() }
+    val defHour = alarm?.hour ?: now.get(Calendar.HOUR_OF_DAY)
+    val defMinute = alarm?.minute ?: now.get(Calendar.MINUTE)
+
+    var hour by remember { mutableStateOf(defHour) }
+    var minute by remember { mutableStateOf(defMinute) }
     var label by remember { mutableStateOf(alarm?.label ?: "") }
     var vibrate by remember { mutableStateOf(alarm?.vibrate ?: true) }
     var days by remember { mutableStateOf(alarm?.repeatDays ?: emptySet()) }
     var ringtone by remember { mutableStateOf(alarm?.ringtoneUri) }
     var textTime by remember {
-        mutableStateOf(String.format("%02d:%02d", alarm?.hour ?: 7, alarm?.minute ?: 0))
+        mutableStateOf(String.format("%02d:%02d", defHour, defMinute))
     }
 
     val ctx = LocalContext.current
@@ -107,7 +113,6 @@ fun AlarmEditDialog(
         },
         text = {
             Column {
-                // ---- 滚轮（唯一真相源：hour / minute）----
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center,
@@ -142,7 +147,6 @@ fun AlarmEditDialog(
 
                 Spacer(Modifier.height(12.dp))
 
-                // ---- 直接输入（与滚轮同页）----
                 OutlinedTextField(
                     value = textTime,
                     onValueChange = {
@@ -163,7 +167,6 @@ fun AlarmEditDialog(
 
                 Spacer(Modifier.height(16.dp))
 
-                // ---- 重复 ----
                 Text("重复", fontSize = 12.sp, color = textSecondary())
                 Spacer(Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -179,7 +182,6 @@ fun AlarmEditDialog(
 
                 Spacer(Modifier.height(14.dp))
 
-                // ---- 标签 ----
                 OutlinedTextField(
                     value = label,
                     onValueChange = { label = it },
@@ -190,7 +192,6 @@ fun AlarmEditDialog(
 
                 Spacer(Modifier.height(14.dp))
 
-                // ---- 铃声 ----
                 Text("铃声", fontSize = 12.sp, color = textSecondary())
                 Spacer(Modifier.height(6.dp))
                 Row(
@@ -254,7 +255,6 @@ fun AlarmEditDialog(
     )
 }
 
-/** 星期小圆片。 */
 @Composable
 private fun DayChip(label: String, selected: Boolean, onClick: () -> Unit) {
     Box(
@@ -274,11 +274,6 @@ private fun DayChip(label: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-/**
- * 滚轮选择器。
- * 用 LazyColumn 的吸附滚动实现，中间那道就是当前值。
- * value 变化时（比如用户在输入框改时间）会同步滚动过去。
- */
 @Composable
 private fun Wheel(
     count: Int,
@@ -347,7 +342,6 @@ private fun dayLabel(d: Int): String = when (d) {
     5 -> "五"; 6 -> "六"; else -> "日"
 }
 
-/** 把铃声 URI 转成用户看得懂的名字。 */
 private fun ringtoneName(ctx: android.content.Context, uri: String?): String {
     if (uri.isNullOrBlank()) return "系统默认"
     return try {
