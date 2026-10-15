@@ -18,7 +18,9 @@ data class GlassSettings(
     /** 背景图压暗程度：0 原图 ~ 0.8 很暗，保证文字可读 */
     val bgDim: Float = 0.35f,
     /** 卡片圆角，单位 dp */
-    val corner: Float = 22f
+    val corner: Float = 22f,
+    /** 主题模式：0 跟随系统，1 浅色，2 深色 */
+    val darkMode: Int = 0
 )
 
 class GlassSettingsStore(context: Context) {
@@ -32,7 +34,8 @@ class GlassSettingsStore(context: Context) {
         opacity = sp.getFloat("opacity", 0.65f),
         bgImageUri = sp.getString("bgImageUri", null),
         bgDim = sp.getFloat("bgDim", 0.35f),
-        corner = sp.getFloat("corner", 22f)
+        corner = sp.getFloat("corner", 22f),
+        darkMode = sp.getInt("darkMode", 0)
     )
 
     fun update(new: GlassSettings) {
@@ -42,6 +45,7 @@ class GlassSettingsStore(context: Context) {
             .putString("bgImageUri", new.bgImageUri)
             .putFloat("bgDim", new.bgDim)
             .putFloat("corner", new.corner)
+            .putInt("darkMode", new.darkMode)
             .apply()
     }
 
