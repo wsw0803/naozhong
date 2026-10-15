@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.CompositionLocalProvider
@@ -48,6 +49,12 @@ class MainActivity : ComponentActivity() {
                     LocalGlassStore provides store
                 ) {
                     var showSettings by remember { mutableStateOf(false) }
+
+                    // 手势/返回键：在设置页时先回主界面，而不是直接退出应用
+                    BackHandler(enabled = showSettings) {
+                        showSettings = false
+                    }
+
                     if (showSettings) {
                         SettingsScreen(onBack = { showSettings = false })
                     } else {
