@@ -30,6 +30,10 @@ class GlassSettingsStore(context: Context) {
     var settings by mutableStateOf(load())
         private set
 
+    /** Root 模式开关（独立存储，不进 GlassSettings 数据类）。 */
+    var rootMode by mutableStateOf(sp.getBoolean("rootMode", false))
+        private set
+
     private fun load() = GlassSettings(
         opacity = sp.getFloat("opacity", 0.65f),
         bgImageUri = sp.getString("bgImageUri", null),
@@ -49,7 +53,15 @@ class GlassSettingsStore(context: Context) {
             .apply()
     }
 
-    fun reset() = update(GlassSettings())
+    fun setRootMode(on: Boolean) {
+        rootMode = on
+        sp.edit().putBoolean("rootMode", on).apply()
+    }
+
+    fun reset() {
+        update(GlassSettings())
+        setRootMode(false)
+    }
 }
 
 val LocalGlassSettings = compositionLocalOf { GlassSettings() }
