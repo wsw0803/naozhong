@@ -386,8 +386,8 @@ private fun openUrl(ctx: Context, url: String) {
 private fun PermRow(
     name: String,
     ok: Boolean?,
-    onClick: () -> Unit,
-    onConfirm: (() -> Unit)? = null
+    onConfirm: (() -> Unit)? = null,
+    onClick: () -> Unit
 ) {
     Column(Modifier.fillMaxWidth()) {
         Row(
