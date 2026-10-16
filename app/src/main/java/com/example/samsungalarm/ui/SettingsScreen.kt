@@ -40,6 +40,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -263,15 +264,18 @@ fun SettingsScreen(onBack: () -> Unit) {
                 // ---- DPI ----
                 GlassPanel {
                     Text("界面缩放 (DPI)", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textPrimary())
+var localDpiScale by remember { mutableStateOf(s.dpiScale) }
+LaunchedEffect(s.dpiScale) { localDpiScale = s.dpiScale }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Slider(
-                            value = s.dpiScale,
-                            onValueChange = { v -> store?.update(s.copy(dpiScale = v)) },
+                        value = localDpiScale,
+                            onValueChange = { v -> localDpiScale = v },
+onValueChangeFinished = { store?.update(s.copy(dpiScale = localDpiScale)) },
                             valueRange = 0.75f..1.5f,
                             modifier = Modifier.weight(1f),
                             colors = SliderDefaults.colors(thumbColor = GlassPrimary, activeTrackColor = GlassPrimary)
                         )
-                        Text("${(s.dpiScale * 100).toInt()}%", fontSize = 13.sp, color = textPrimary(), modifier = Modifier.padding(start = 10.dp))
+                        Text("${(localDpiScale * 100).toInt()}%", fontSize = 13.sp, color = textPrimary(), modifier = Modifier.padding(start = 10.dp))
                     }
                 }
 
