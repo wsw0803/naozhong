@@ -17,6 +17,7 @@ import java.util.Calendar
  * 常驻通知：显示下一个即将响铃的闹钟。
  * 规则：在所有「已开启且所属分组已开启」的闹钟里，严格按绝对触发时间取最近的一个，
  * 与谁先开启、列表顺序无关；没有任何待响闹钟时移除通知。
+ * 文案展示：今天/明天 + 时间 + 分组名 + 标签。
  */
 object NextAlarmNotifier {
 
@@ -26,6 +27,7 @@ object NextAlarmNotifier {
     fun update(context: Context, alarms: List<Alarm>, groups: List<AlarmGroup>) {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val groupEnabled = groups.associate { it.id to it.enabled }
+        val groupName = groups.associate { it.id to it.name }
         val now = Calendar.getInstance()
 
         var bestAlarm: Alarm? = null
@@ -45,7 +47,6 @@ object NextAlarmNotifier {
 
         val alarm = bestAlarm
         if (alarm == null) {
-            // 没有待响闹钟（含已过期的一次性闹钟），移除常驻通知
             nm.cancel(NOTI_ID)
             return
         }
@@ -79,7 +80,13 @@ object NextAlarmNotifier {
             isTomorrow -> "明天 "
             else -> ""
         }
-        val text = dayPrefix + timeText + (if (alarm.label.isBlank()) "" else " · " + alarm.label)
+
+        val parts = ArrayList<String>()
+        parts.add(dayPrefix + timeText)
+        val gName = groupName[alarm.groupId]
+        if (!gName.isNullOrBlank()) parts.add(gName)
+        if (alarm.label.isNotBlank()) parts.add(alarm.label)
+        val text = parts.joinToString(" · ")
 
         var flags = PendingIntent.FLAG_UPDATE_CURRENT
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
