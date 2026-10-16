@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -77,8 +78,10 @@ class AlarmRingActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         showOverLockScreen()
+        val id = intent?.getLongExtra(EXTRA_ID, -1L) ?: -1L
         val label = intent?.getStringExtra(EXTRA_LABEL).orEmpty()
         val time = intent?.getStringExtra(EXTRA_TIME).orEmpty()
+        val snooze = intent?.getIntExtra(EXTRA_SNOOZE, 5) ?: 5
         val store = GlassSettingsStore(applicationContext)
         setContent {
             CompositionLocalProvider(
@@ -89,7 +92,9 @@ class AlarmRingActivity : ComponentActivity() {
                     RingScreen(
                         label = label,
                         time = time,
-                        onStop = { stopRinging() }
+                        snoozeMinutes = snooze,
+                        onStop = { stopRinging() },
+                        onSnooze = { doSnooze(id, snooze) }
                     )
                 }
             }
@@ -117,6 +122,12 @@ class AlarmRingActivity : ComponentActivity() {
         finishAndRemoveTask()
     }
 
+    private fun doSnooze(id: Long, minutes: Int) {
+        AlarmService.stop(applicationContext)
+        if (id >= 0) AlarmScheduler.scheduleSnooze(applicationContext, id, minutes)
+        finishAndRemoveTask()
+    }
+
     @Suppress("DEPRECATION")
     override fun onBackPressed() {
         // 全屏响铃页禁止返回键关闭，只能从左滑到右停止
@@ -127,7 +138,9 @@ class AlarmRingActivity : ComponentActivity() {
 private fun RingScreen(
     label: String,
     time: String,
-    onStop: () -> Unit
+    snoozeMinutes: Int,
+    onStop: () -> Unit,
+    onSnooze: () -> Unit
 ) {
     BackHandler(enabled = true) { }
     val shape = RoundedCornerShape(28.dp)
@@ -167,8 +180,10 @@ private fun RingScreen(
                     color = textSecondary(), textAlign = TextAlign.Center
                 )
             }
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(24.dp))
             SlideToStop(onStop = onStop)
+            Spacer(Modifier.height(14.dp))
+            SlideToSnooze(minutes = snoozeMinutes, onSnooze = onSnooze)
         }
     }
 }
@@ -229,6 +244,67 @@ private fun SlideToStop(onStop: () -> Unit) {
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier.size(28.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SlideToSnooze(minutes: Int, onSnooze: () -> Unit) {
+    val trackHeight = 60.dp
+    val thumb = 48.dp
+    val startPad = 6.dp
+    var widthPx by remember { mutableIntStateOf(0) }
+    var offsetX by remember { mutableFloatStateOf(0f) }
+    val density = LocalDensity.current
+    val thumbPx = with(density) { thumb.toPx() }
+    val startPadPx = with(density) { startPad.toPx() }
+    val maxOffset = (widthPx - thumbPx - startPadPx * 2f).coerceAtLeast(0f)
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(trackHeight)
+            .clip(RoundedCornerShape(trackHeight / 2))
+            .background(glassFill())
+            .border(BorderStroke(1.dp, glassBorder()), RoundedCornerShape(trackHeight / 2))
+            .onSizeChanged { widthPx = it.width }
+            .pointerInput(widthPx) {
+                detectHorizontalDragGestures(
+                    onDragEnd = {
+                        if (maxOffset > 0f && offsetX <= -maxOffset + 4f) onSnooze()
+                        offsetX = 0f
+                    },
+                    onDragCancel = { offsetX = 0f },
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        offsetX = (offsetX + dragAmount).coerceIn(-maxOffset, 0f)
+                    }
+                )
+            },
+        contentAlignment = Alignment.CenterEnd
+    ) {
+        Text(
+            "←  从右滑到左：延迟 ''+minutes.toString()+'' 分钟",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            color = textSecondary(),
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.Center
+        )
+        Box(
+            modifier = Modifier
+                .offset { IntOffset((widthPx - thumbPx - startPadPx + offsetX).roundToInt(), 0) }
+                .size(thumb)
+                .clip(CircleShape)
+                .background(textSecondary()),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Default.ChevronLeft,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(24.dp)
             )
         }
     }

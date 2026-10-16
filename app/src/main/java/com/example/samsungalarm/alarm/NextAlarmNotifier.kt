@@ -60,7 +60,7 @@ object NextAlarmNotifier {
         parts.add(remainingText(bestTime - System.currentTimeMillis()))
         groupName[alarm.groupId]?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
         if (alarm.label.isNotBlank()) parts.add(alarm.label)
-        safeNotify(nm, buildNotification(context, "下一个闹钟", parts.joinToString(" · ")))
+        safeNotify(nm, buildNotification(context, "下一个闹钟", parts.joinToString(" · "), countDownTo = bestTime))
 
         scheduleAutoRefresh(context, bestTime)
     }
@@ -84,7 +84,7 @@ object NextAlarmNotifier {
     }
 
     fun buildNotification(
-        context: Context, title: String, text: String
+        context: Context, title: String, text: String, countDownTo: Long? = null
     ): android.app.Notification {
         var flags = PendingIntent.FLAG_UPDATE_CURRENT
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags = flags or PendingIntent.FLAG_IMMUTABLE
@@ -100,6 +100,14 @@ object NextAlarmNotifier {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(openPi)
+            .apply {
+                if (countDownTo != null) {
+                    setWhen(countDownTo)
+                    setUsesChronometer(true)
+                    setChronometerCountDown(true)
+                    setShowWhen(true)
+                }
+            }
             .build()
         return noti
     }
