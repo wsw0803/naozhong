@@ -184,9 +184,9 @@ private fun RingScreen(
                 )
             }
             Spacer(Modifier.height(24.dp))
-            SlideToAction(text = "滑动停止  →", forward = true, accent = GlassPrimary, onDone = onStop)
+            SlideToAction(text = "滑动停止  →", forward = true, accent = GlassPrimary, onDone = onSnooze)
             Spacer(Modifier.height(14.dp))
-            SlideToAction(text = "←  滑动延迟 " + snoozeMinutes + " 分钟", forward = false, accent = GlassPrimary, onDone = onSnooze)
+            SlideToAction(text = "←  滑动延迟 " + snoozeMinutes + " 分钟", forward = false, accent = GlassPrimary, onDone = onStop)
         }
     }
 }
