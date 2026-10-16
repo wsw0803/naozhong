@@ -16,9 +16,11 @@ import java.util.Calendar
 
 /**
  * 常驻通知：显示下一个即将响铃的闹钟。
- * 规则：在所有「已开启且所属分组已开启」的闹钟里，严格按绝对触发时间取最近的一个，
- * 与谁先开启、列表顺序无关；已经过期的一次性闹钟不参与，没有任何待响闹钟时移除通知。
- * 到点后会自动刷新一次，让通知栏随时间一直向前推进。
+ * 规则：
+ *  - 只要闹钟开启且所属分组开启，就参与候选（过期的也参与，自动顺延到下一次）。
+ *  - 在所有候选里取「下一次触发时间」最近的那个，与谁先开启、列表顺序无关。
+ *  - 文案显示还剩多久，例如「23小时53分钟后 · 分组 · 标签」。
+ *  - 到点后自动刷新，开关闹钟也会重新刷新。
  */
 object NextAlarmNotifier {
 
@@ -37,12 +39,10 @@ object NextAlarmNotifier {
         alarms.forEach { a ->
             val active = a.enabled && (groupEnabled[a.groupId] ?: true)
             if (active) {
-                val t = a.nextTriggerAtMillis(now)
-                if (t != null) {
-                    if (t < bestTime || (t == bestTime && bestAlarm != null && a.id < bestAlarm!!.id)) {
-                        bestTime = t
-                        bestAlarm = a
-                    }
+                val t = nextTriggerIncludingPast(a, now)
+                if (t != null && t < bestTime) {
+                    bestTime = t
+                    bestAlarm = a
                 }
             }
         }
@@ -65,26 +65,8 @@ object NextAlarmNotifier {
             nm.createNotificationChannel(ch)
         }
 
-        val cal = Calendar.getInstance().apply { timeInMillis = bestTime }
-        val timeText = String.format(
-            "%02d:%02d",
-            cal.get(Calendar.HOUR_OF_DAY),
-            cal.get(Calendar.MINUTE)
-        )
-        val nowCal = Calendar.getInstance()
-        val sameDay = cal.get(Calendar.YEAR) == nowCal.get(Calendar.YEAR) &&
-                cal.get(Calendar.DAY_OF_YEAR) == nowCal.get(Calendar.DAY_OF_YEAR)
-        val tomorrowCal = (nowCal.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 1) }
-        val isTomorrow = cal.get(Calendar.YEAR) == tomorrowCal.get(Calendar.YEAR) &&
-                cal.get(Calendar.DAY_OF_YEAR) == tomorrowCal.get(Calendar.DAY_OF_YEAR)
-        val dayPrefix = when {
-            sameDay -> "今天 "
-            isTomorrow -> "明天 "
-            else -> ""
-        }
-
         val parts = ArrayList<String>()
-        parts.add(dayPrefix + timeText)
+        parts.add(remainingText(bestTime - System.currentTimeMillis()))
         val gName = groupName[alarm.groupId]
         if (!gName.isNullOrBlank()) parts.add(gName)
         if (alarm.label.isNotBlank()) parts.add(alarm.label)
@@ -121,9 +103,37 @@ object NextAlarmNotifier {
     }
 
     /**
-     * 在当前显示的闹钟时刻之后安排一次刷新：
-     * 这样即使没有任何交互，通知栏也会自动前移，不会继续挂着已过期的那一个。
+     * 计算闹钟的下一次触发时间：
+     *  - 重复闹钟：交给 nextTriggerAtMillis，自然顺延到下一个重复日。
+     *  - 一次性闹钟：今天的时间点已过就顺延到明天同一时刻（保证始终显示未来最近的那个）。
      */
+    private fun nextTriggerIncludingPast(a: Alarm, now: Calendar): Long? {
+        if (a.repeatDays.isNotEmpty()) {
+            return a.nextTriggerAtMillis(now)
+        }
+        val cal = now.clone() as Calendar
+        cal.set(Calendar.HOUR_OF_DAY, a.hour)
+        cal.set(Calendar.MINUTE, a.minute)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        if (cal.timeInMillis <= now.timeInMillis) {
+            cal.add(Calendar.DAY_OF_YEAR, 1)
+        }
+        return cal.timeInMillis
+    }
+
+    /** 把剩余毫秒转成「X天X小时后 / X小时X分钟后 / X分钟后 / 即将响铃」。 */
+    private fun remainingText(remainMs: Long): String {
+        if (remainMs <= 0) return "即将响铃"
+        val totalMin = remainMs / 60000L
+        return when {
+            totalMin < 1 -> "即将响铃"
+            totalMin < 60 -> totalMin.toString() + "分钟后"
+            totalMin < 1440 -> (totalMin / 60).toString() + "小时" + (totalMin % 60).toString() + "分钟后"
+            else -> (totalMin / 1440).toString() + "天" + ((totalMin % 1440) / 60).toString() + "小时后"
+        }
+    }
+
     private fun scheduleAutoRefresh(context: Context, triggerAt: Long) {
         try {
             val manager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
