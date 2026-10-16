@@ -8,6 +8,9 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import androidx.lifecycle.lifecycleScope
+import com.example.samsungalarm.alarm.AlarmScheduler
+import com.example.samsungalarm.AlarmApp
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -27,7 +30,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.IntOffset
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.samsungalarm.alarm.AlarmScheduler
 import com.example.samsungalarm.ui.AlarmViewModel
 import com.example.samsungalarm.ui.GlassSettingsStore
 import com.example.samsungalarm.ui.GroupScreen
@@ -97,6 +99,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // 每次回到前台都重新登记闹钟并刷新常驻"下一个闹钟"通知，
         // 覆盖首次启动、从系统设置授权返回、通知权限刚授予等场景。
+        requestPermissionsIfNeeded()
         refreshAlarmState()
     }
 

@@ -287,7 +287,7 @@ private fun PermRow(name: String, ok: Boolean?, onClick: () -> Unit) {
         val (label, color) = when (ok) {
             true -> "已开启" to Color(0xFF2FA84F)
             false -> "去开启" to Color(0xFFE0533D)
-            null -> "需手动" to GlassPrimary
+            null -> "去设置" to GlassPrimary
         }
         Text(label, fontSize = 13.sp, color = color, fontWeight = FontWeight.Medium)
     }
@@ -332,6 +332,9 @@ private fun GlassPanel(content: @Composable () -> Unit) {
 object PermissionUtils {
 
     fun hasNotification(ctx: Context): Boolean {
+        // 通知总开关被系统/用户关掉时，即使运行时权限已授予也发不出通知
+        val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (!nm.areNotificationsEnabled()) return false
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
         return ctx.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) ==
                 android.content.pm.PackageManager.PERMISSION_GRANTED

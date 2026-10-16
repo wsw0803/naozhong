@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import android.app.Notification
 import com.example.samsungalarm.MainActivity
 import com.example.samsungalarm.data.Alarm
 import com.example.samsungalarm.data.AlarmGroup
@@ -50,11 +51,12 @@ object NextAlarmNotifier {
             val ch = NotificationChannel(
                 CHANNEL_ID,
                 "待响闹钟",
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
                 description = "显示下一个即将响铃的闹钟"
                 setShowBadge(false)
             }
+            nm.deleteNotificationChannel(CHANNEL_ID)
             nm.createNotificationChannel(ch)
         }
 
@@ -81,7 +83,7 @@ object NextAlarmNotifier {
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle("下一个闹钟")
             .setContentText(text)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setCategory(NotificationCompat.CATEGORY_STATUS)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
