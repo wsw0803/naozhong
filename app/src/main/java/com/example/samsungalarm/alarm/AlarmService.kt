@@ -39,6 +39,7 @@ class AlarmService : Service() {
         const val EXTRA_LABEL = "label"
         const val EXTRA_RINGTONE = "ringtone"
         const val EXTRA_VIBRATE = "vibrate"
+        const val EXTRA_SNOOZE = "snooze"
 
         private const val NOTI_ID = 90001
 
@@ -49,7 +50,8 @@ class AlarmService : Service() {
             alarmId: Long,
             label: String,
             ringtone: String?,
-            vibrate: Boolean
+            vibrate: Boolean,
+            snoozeMinutes: Int
         ) {
             val i = Intent(context, AlarmService::class.java).apply {
                 action = ACTION_START
@@ -57,6 +59,7 @@ class AlarmService : Service() {
                 putExtra(EXTRA_LABEL, label)
                 putExtra(EXTRA_RINGTONE, ringtone)
                 putExtra(EXTRA_VIBRATE, vibrate)
+                putExtra(EXTRA_SNOOZE, snoozeMinutes)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(i)
@@ -90,19 +93,20 @@ class AlarmService : Service() {
                 val label = intent?.getStringExtra(EXTRA_LABEL).orEmpty()
                 val tone = intent?.getStringExtra(EXTRA_RINGTONE)
                 val vib = intent?.getBooleanExtra(EXTRA_VIBRATE, true) ?: true
-                startRinging(id, label, tone, vib)
+                val sn = intent?.getIntExtra(EXTRA_SNOOZE, 5) ?: 5
+                startRinging(id, label, tone, vib, sn)
             }
         }
         return START_STICKY
     }
 
-    private fun startRinging(alarmId: Long, label: String, tone: String?, vibrate: Boolean) {
+    private fun startRinging(alarmId: Long, label: String, tone: String?, vibrate: Boolean, snooze: Int) {
         if (ringing) return
         ringing = true
 
         acquireWakeLock()
         showForegroundNotification(label)
-        launchFullScreen(label)
+        launchFullScreen(alarmId, label, snooze)
         playSound(tone)
         if (vibrate) startVibration()
     }
@@ -167,11 +171,13 @@ class AlarmService : Service() {
         startForeground(NOTI_ID, noti)
     }
 
-    private fun launchFullScreen(label: String) {
+    private fun launchFullScreen(alarmId: Long, label: String, snooze: Int) {
         try {
             val i = Intent(this, AlarmRingActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                putExtra(AlarmRingActivity.EXTRA_ID, alarmId)
                 putExtra(AlarmRingActivity.EXTRA_LABEL, label)
+                putExtra(AlarmRingActivity.EXTRA_SNOOZE, snooze)
             }
             startActivity(i)
         } catch (_: Exception) { }

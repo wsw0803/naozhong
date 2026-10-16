@@ -11,54 +11,67 @@ import com.example.samsungalarm.data.nextTriggerAtMillis
 import java.util.Calendar
 
 object AlarmScheduler {
+    private const val REQ = 10000
+    private const val SHOW = 30000
 
-    private const val REQUEST_CODE_BASE = 10000
-
-    fun refreshNotification(context: Context, alarms: List<Alarm>, groups: List<AlarmGroup>) {
-        NextAlarmNotifier.update(context, alarms, groups)
+    fun refreshNotification(c: Context, a: List<Alarm>, g: List<AlarmGroup>) {
+        NextAlarmNotifier.update(c, a, g)
     }
 
-    fun rescheduleAll(context: Context, alarms: List<Alarm>, groups: List<AlarmGroup>) {
-        val groupEnabled = groups.associate { it.id to it.enabled }
-        alarms.forEach { alarm ->
-            cancel(context, alarm.id)
-            val active = alarm.enabled && (groupEnabled[alarm.groupId] ?: true)
-            if (active) {
-                val triggerAt = alarm.nextTriggerAtMillis(Calendar.getInstance())
-                if (triggerAt != null) schedule(context, alarm, triggerAt)
+    fun rescheduleAll(c: Context, alarms: List<Alarm>, groups: List<AlarmGroup>) {
+        val ge = groups.associate { it.id to it.enabled }
+        alarms.forEach { al ->
+            cancel(c, al.id)
+            if (al.enabled && (ge[al.groupId] ?: true)) {
+                val t = al.nextTriggerAtMillis(Calendar.getInstance())
+                if (t != null) setAlarm(c, al.id, t)
             }
         }
-        NextAlarmNotifier.update(context, alarms, groups)
+        NextAlarmNotifier.update(c, alarms, groups)
     }
 
-    fun schedule(context: Context, alarm: Alarm, triggerAtMillis: Long) {
-        val manager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val pending = pendingIntent(context, alarm.id)
+    fun schedule(c: Context, alarm: Alarm, at: Long) = setAlarm(c, alarm.id, at)
+
+    fun scheduleSnooze(c: Context, alarmId: Long, minutes: Int) {
+        setAlarm(c, alarmId, System.currentTimeMillis() + minutes.coerceAtLeast(1) * 60000L)
+    }
+
+    private fun setAlarm(c: Context, id: Long, at: Long) {
+        val m = c.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val p = pi(c, id)
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !manager.canScheduleExactAlarms()) {
-                manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pending)
-            } else {
-                manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pending)
-            }
-        } catch (e: SecurityException) {
-            manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pending)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !m.canScheduleExactAlarms())
+                m.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, p)
+            else
+                m.setAlarmClock(AlarmManager.AlarmClockInfo(at, show(c, id)), p)
+        } catch (e: Exception) {
+            try { m.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, p) }
+            catch (_: Exception) { m.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, p) }
         }
     }
 
-    fun cancel(context: Context, alarmId: Long) {
-        val manager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        manager.cancel(pendingIntent(context, alarmId))
+    fun cancel(c: Context, id: Long) {
+        (c.getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(pi(c, id))
     }
 
-    private fun pendingIntent(context: Context, alarmId: Long): PendingIntent {
-        val intent = Intent(context, AlarmReceiver::class.java).apply {
+    private fun flags(): Int {
+        var f = PendingIntent.FLAG_UPDATE_CURRENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) f = f or PendingIntent.FLAG_IMMUTABLE
+        return f
+    }
+
+    private fun pi(c: Context, id: Long): PendingIntent {
+        val i = Intent(c, AlarmReceiver::class.java).apply {
             action = AlarmReceiver.ACTION_RING
-            putExtra(AlarmReceiver.EXTRA_ALARM_ID, alarmId)
+            putExtra(AlarmReceiver.EXTRA_ALARM_ID, id)
         }
-        var flags = PendingIntent.FLAG_UPDATE_CURRENT
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            flags = flags or PendingIntent.FLAG_IMMUTABLE
+        return PendingIntent.getBroadcast(c, REQ + id.toInt(), i, flags())
+    }
+
+    private fun show(c: Context, id: Long): PendingIntent {
+        val i = Intent(c, AlarmRingActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }
-        return PendingIntent.getBroadcast(context, REQUEST_CODE_BASE + alarmId.toInt(), intent, flags)
+        return PendingIntent.getActivity(c, SHOW + id.toInt(), i, flags())
     }
 }

@@ -10,6 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,15 +57,19 @@ import java.util.Locale
 class AlarmRingActivity : ComponentActivity() {
 
     companion object {
+        const val EXTRA_ID = "ring_id"
         const val EXTRA_LABEL = "ring_label"
         const val EXTRA_TIME = "ring_time"
+        const val EXTRA_SNOOZE = "ring_snooze"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         showOverLockScreen()
+        val id = intent?.getLongExtra(EXTRA_ID, -1L) ?: -1L
         val label = intent?.getStringExtra(EXTRA_LABEL).orEmpty()
         val time = intent?.getStringExtra(EXTRA_TIME).orEmpty()
+        val snooze = intent?.getIntExtra(EXTRA_SNOOZE, 5) ?: 5
         val store = GlassSettingsStore(applicationContext)
         setContent {
             CompositionLocalProvider(
@@ -72,7 +77,13 @@ class AlarmRingActivity : ComponentActivity() {
                 LocalGlassStore provides store
             ) {
                 AlarmTheme {
-                    RingScreen(label = label, time = time, onStop = { stopRinging() })
+                    RingScreen(
+                        label = label,
+                        time = time,
+                        snoozeMinutes = snooze,
+                        onStop = { stopRinging() },
+                        onSnooze = { doSnooze(id, snooze) }
+                    )
                 }
             }
         }
@@ -99,20 +110,30 @@ class AlarmRingActivity : ComponentActivity() {
         finishAndRemoveTask()
     }
 
+    private fun doSnooze(id: Long, minutes: Int) {
+        AlarmService.stop(applicationContext)
+        if (id >= 0) AlarmScheduler.scheduleSnooze(applicationContext, id, minutes)
+        finishAndRemoveTask()
+    }
+
     @Suppress("DEPRECATION")
     override fun onBackPressed() {
     }
 }
 
 @Composable
-private fun RingScreen(label: String, time: String, onStop: () -> Unit) {
+private fun RingScreen(
+    label: String,
+    time: String,
+    snoozeMinutes: Int,
+    onStop: () -> Unit,
+    onSnooze: () -> Unit
+) {
     val shape = RoundedCornerShape(28.dp)
     Box(Modifier.fillMaxSize()) {
         AppBackground()
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
+            modifier = Modifier.fillMaxSize().padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -127,41 +148,40 @@ private fun RingScreen(label: String, time: String, onStop: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box(
-                    modifier = Modifier
-                        .size(72.dp)
-                        .clip(CircleShape)
+                    modifier = Modifier.size(72.dp).clip(CircleShape)
                         .background(GlassPrimary.copy(alpha = 0.18f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        Icons.Default.Alarm,
-                        contentDescription = null,
-                        tint = GlassPrimary,
-                        modifier = Modifier.size(38.dp)
-                    )
+                    Icon(Icons.Default.Alarm, contentDescription = null, tint = GlassPrimary, modifier = Modifier.size(38.dp))
                 }
                 Spacer(Modifier.height(18.dp))
                 Text(
                     if (time.isBlank()) currentTime() else time,
-                    fontSize = 56.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = textPrimary()
+                    fontSize = 56.sp, fontWeight = FontWeight.Bold, color = textPrimary()
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
                     if (label.isBlank()) "时间到了" else label,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = textSecondary(),
-                    textAlign = TextAlign.Center
+                    fontSize = 20.sp, fontWeight = FontWeight.Medium,
+                    color = textSecondary(), textAlign = TextAlign.Center
                 )
             }
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(24.dp))
+            Button(
+                onClick = onSnooze,
+                modifier = Modifier.fillMaxWidth().height(58.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = glassFill(), contentColor = textPrimary()
+                ),
+                border = BorderStroke(1.dp, glassBorder())
+            ) {
+                Text("延迟 ${snoozeMinutes} 分钟", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(Modifier.height(12.dp))
             Button(
                 onClick = onStop,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(58.dp),
+                modifier = Modifier.fillMaxWidth().height(58.dp),
                 shape = RoundedCornerShape(20.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = GlassPrimary)
             ) {

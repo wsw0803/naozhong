@@ -58,7 +58,8 @@ class AlarmReceiver : BroadcastReceiver() {
                     alarmId = alarm.id,
                     label = alarm.label,
                     ringtone = alarm.ringtoneUri,
-                    vibrate = alarm.vibrate
+                    vibrate = alarm.vibrate,
+                    snoozeMinutes = alarm.snoozeMinutes
                 )
 
                 if (alarm.repeatDays.isNotEmpty()) {
