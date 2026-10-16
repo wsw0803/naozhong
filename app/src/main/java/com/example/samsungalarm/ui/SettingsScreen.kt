@@ -103,6 +103,15 @@ fun SettingsScreen(onBack: () -> Unit) {
     // 每次回到前台（含从系统设置授权返回）都刷新一次权限状态
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refreshPerms() }
 
+    val lc = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lc) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) refreshPerms()
+        }
+        lc.lifecycle.addObserver(obs)
+        onDispose { lc.lifecycle.removeObserver(obs) }
+    }
+
     Box(Modifier.fillMaxSize()) {
         AppBackground()
         Scaffold(

@@ -14,6 +14,10 @@ object AlarmScheduler {
 
     private const val REQUEST_CODE_BASE = 10000
 
+    fun refreshNotification(context: Context, alarms: List<Alarm>, groups: List<AlarmGroup>) {
+        NextAlarmNotifier.update(context, alarms, groups)
+    }
+
     fun rescheduleAll(context: Context, alarms: List<Alarm>, groups: List<AlarmGroup>) {
         val groupEnabled = groups.associate { it.id to it.enabled }
         alarms.forEach { alarm ->

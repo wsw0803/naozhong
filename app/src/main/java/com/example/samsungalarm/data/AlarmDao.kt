@@ -45,6 +45,8 @@ interface AlarmDao {
 
     @Delete
     suspend fun deleteAlarm(alarm: Alarm)
+    @Delete
+    suspend fun deleteAlarms(alarms: List<Alarm>)
 
     @Query("UPDATE alarm_groups SET enabled = :enabled WHERE id = :groupId")
     suspend fun setGroupEnabled(groupId: Long, enabled: Boolean)

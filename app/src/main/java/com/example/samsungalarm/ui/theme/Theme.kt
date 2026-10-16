@@ -1,7 +1,9 @@
 package com.example.samsungalarm.ui.theme
 
 import android.app.Activity
+import android.graphics.Color as AndroidColor
 import android.net.Uri
+import android.os.Build
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -180,15 +182,28 @@ fun AlarmTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = Color.Transparent.toArgb()
-            window.navigationBarColor = Color.Transparent.toArgb()
-            // 窗口背景跟随主题：edge-to-edge 下状态栏/导航栏区域透出的是它，避免浅色模式固定白色
+            window.statusBarColor = AndroidColor.TRANSPARENT
+            window.navigationBarColor = AndroidColor.TRANSPARENT
+
+            // edge-to-edge：内容绘制到状态栏/导航栏后面
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+
+            // 窗口背景跟随主题，状态栏/导航栏区域透出它，避免浅色模式固定白条
             window.decorView.setBackgroundColor(
                 (if (darkTheme) DarkBgMid else LightBgMid).toArgb()
             )
+
+            // 图标亮暗由当前主题决定，切主题即时生效
+            val light = !darkTheme
             WindowCompat.getInsetsController(window, view).apply {
-                isAppearanceLightStatusBars = !darkTheme
-                isAppearanceLightNavigationBars = !darkTheme
+                isAppearanceLightStatusBars = light
+                isAppearanceLightNavigationBars = light
+            }
+
+            // 关闭部分 ROM(含 Android 16) 强制加的对比度遮罩，避免不跟主题的色块
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                window.isNavigationBarContrastEnforced = false
+                window.isStatusBarContrastEnforced = false
             }
         }
     }

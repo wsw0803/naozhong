@@ -36,6 +36,11 @@ class AlarmRepository(private val dao: AlarmDao) {
     suspend fun setAlarmEnabled(id: Long, enabled: Boolean) =
         dao.setAlarmEnabled(id, enabled)
 
+    suspend fun setAllEnabledInGroup(groupId: Long, enabled: Boolean) =
+        dao.setAlarmsEnabledInGroup(groupId, enabled)
+
+    suspend fun deleteAlarms(alarms: List<Alarm>) = dao.deleteAlarms(alarms)
+
     suspend fun allAlarms(): List<Alarm> = dao.allAlarmsOnce()
 
     suspend fun allGroups(): List<AlarmGroup> = dao.groupsOnce()

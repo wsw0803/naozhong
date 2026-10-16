@@ -21,6 +21,28 @@ data class GroupWithAlarms(
 class AlarmViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo = (app as AlarmApp).repository
+    init {
+        refreshNextAlarmNotification()
+    }
+
+    fun refreshNextAlarmNotification() {
+        viewModelScope.launch {
+            val alarms = repo.allAlarms()
+            val groups = repo.allGroups()
+            AlarmScheduler.refreshNotification(getApplication(), alarms, groups)
+        }
+    }
+
+    fun setAllInGroup(groupId: Long, enabled: Boolean) = viewModelScope.launch {
+        repo.setAllEnabledInGroup(groupId, enabled)
+        reschedule()
+    }
+
+    fun deleteAlarms(alarms: List<Alarm>) = viewModelScope.launch {
+        alarms.forEach { AlarmScheduler.cancel(getApplication(), it.id) }
+        repo.deleteAlarms(alarms)
+        reschedule()
+    }
 
     val grouped: StateFlow<List<GroupWithAlarms>> =
         combine(repo.groups, repo.alarms) { groups, alarms ->

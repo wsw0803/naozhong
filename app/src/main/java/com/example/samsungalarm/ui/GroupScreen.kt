@@ -1,6 +1,8 @@
 package com.example.samsungalarm.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,11 +22,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -207,6 +213,8 @@ private fun GroupDetailScreen(
 ) {
     var editing by remember { mutableStateOf<Alarm?>(null) }
     var creating by remember { mutableStateOf(false) }
+    var selectionMode by remember { mutableStateOf(false) }
+    var selectedIds by remember { mutableStateOf(setOf<Long>()) }
     var menu by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
 
@@ -215,26 +223,49 @@ private fun GroupDetailScreen(
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
-                TopAppBar(
-                    title = { Text(entry.group.name, fontWeight = FontWeight.Bold, color = textPrimary()) },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = textPrimary())
-                        }
-                    },
-                    actions = {
-                        Box {
-                            IconButton(onClick = { menu = true }) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "更多", tint = textPrimary())
+                if (selectionMode) {
+                    TopAppBar(
+                        title = { Text("已选 " + selectedIds.size, color = textPrimary()) },
+                        navigationIcon = {
+                            IconButton(onClick = { selectionMode = false; selectedIds = emptySet() }) {
+                                Icon(Icons.Default.Close, contentDescription = "退出", tint = textPrimary())
                             }
-                            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                                DropdownMenuItem(text = { Text("重命名分组") }, onClick = { menu = false; renaming = true })
-                                DropdownMenuItem(text = { Text("删除分组") }, onClick = { menu = false; vm.deleteGroup(entry.group); onBack() })
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                    )
+                } else {
+                    TopAppBar(
+                        title = { Text(entry.group.name, fontWeight = FontWeight.Bold, color = textPrimary()) },
+                        navigationIcon = {
+                            IconButton(onClick = onBack) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = textPrimary())
                             }
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
-                )
+                        },
+                        actions = {
+                            Box {
+                                IconButton(onClick = { menu = true }) {
+                                    Icon(Icons.Default.MoreVert, contentDescription = "更多", tint = textPrimary())
+                                }
+                                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                                    DropdownMenuItem(text = { Text("重命名分组") }, onClick = { menu = false; renaming = true })
+                                    DropdownMenuItem(text = { Text("全部开启") }, onClick = { menu = false; vm.setAllInGroup(entry.group.id, true) })
+                                    DropdownMenuItem(text = { Text("全部关闭") }, onClick = { menu = false; vm.setAllInGroup(entry.group.id, false) })
+                                    DropdownMenuItem(text = { Text("删除分组") }, onClick = { menu = false; vm.deleteGroup(entry.group); onBack() })
+                                }
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                    )
+                }
+            },
+            bottomBar = {
+                if (selectionMode) {
+                    BottomAppBar(containerColor = Color.Transparent) {
+                        TextButton(onClick = { entry.alarms.filter { selectedIds.contains(it.id) }.forEach { vm.toggleAlarm(it, true) } }) { Text("开启", color = textPrimary()) }
+                        TextButton(onClick = { entry.alarms.filter { selectedIds.contains(it.id) }.forEach { vm.toggleAlarm(it, false) } }) { Text("关闭", color = textPrimary()) }
+                        TextButton(onClick = { vm.deleteAlarms(entry.alarms.filter { selectedIds.contains(it.id) }); selectionMode = false; selectedIds = emptySet() }) { Text("删除", color = Color(0xFFE0533D)) }
+                    }
+                }
             },
             floatingActionButton = {
                 FloatingActionButton(
@@ -271,10 +302,14 @@ private fun GroupDetailScreen(
                         GlassAlarmRow(
                             alarm = alarm,
                             groupEnabled = entry.group.enabled,
+                            selectionMode = selectionMode,
+                            selected = selectedIds.contains(alarm.id),
                             onToggle = { on -> vm.toggleAlarm(alarm, on) },
                             onDuplicate = { vm.duplicateAlarm(alarm) },
                             onDelete = { vm.deleteAlarm(alarm) },
-                            onEdit = { editing = alarm }
+                            onEdit = { editing = alarm },
+                            onLongPress = { selectionMode = true; selectedIds = selectedIds + alarm.id },
+                            onSelectToggle = { selectedIds = if (selectedIds.contains(alarm.id)) selectedIds - alarm.id else selectedIds + alarm.id }
                         )
                     }
                 }
@@ -309,15 +344,19 @@ private fun GroupDetailScreen(
         )
     }
 }
-
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun GlassAlarmRow(
     alarm: Alarm,
     groupEnabled: Boolean,
+    selectionMode: Boolean,
+    selected: Boolean,
     onToggle: (Boolean) -> Unit,
     onDuplicate: () -> Unit,
     onDelete: () -> Unit,
-    onEdit: () -> Unit
+    onEdit: () -> Unit,
+    onLongPress: () -> Unit,
+    onSelectToggle: () -> Unit
 ) {
     val active = alarm.enabled && groupEnabled
     val shape = RoundedCornerShape(LocalGlassSettings.current.corner.dp)
@@ -326,10 +365,18 @@ private fun GlassAlarmRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(glassFill())
+            .background(if (selected) GlassPrimary.copy(alpha = 0.15f) else glassFill())
             .border(BorderStroke(1.dp, glassBorder()), shape)
+            .combinedClickable(onClick = { if (selectionMode) onSelectToggle() else onEdit() }, onLongClick = onLongPress)
             .padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
+        if (selectionMode) {
+            Checkbox(
+                checked = selected,
+                onCheckedChange = { onSelectToggle() },
+                colors = CheckboxDefaults.colors(checkedColor = GlassPrimary)
+            )
+        }
         Column(Modifier.weight(1f)) {
             Text(
                 String.format("%02d:%02d", alarm.hour, alarm.minute),
@@ -337,36 +384,20 @@ private fun GlassAlarmRow(
                 fontWeight = FontWeight.Medium,
                 color = if (active) textPrimary() else textSecondary()
             )
-            Text(
-                buildSubtitle(alarm),
-                fontSize = 11.sp,
-                color = textSecondary()
-            )
+            Text(buildSubtitle(alarm), fontSize = 11.sp, color = textSecondary())
         }
-        IconButton(onClick = onDuplicate, modifier = Modifier.size(34.dp)) {
-            Icon(
-                Icons.Default.ContentCopy,
-                contentDescription = "复制闹钟",
-                tint = textSecondary(),
-                modifier = Modifier.size(17.dp)
-            )
+        if (!selectionMode) {
+            IconButton(onClick = onDuplicate, modifier = Modifier.size(34.dp)) {
+                Icon(Icons.Default.ContentCopy, contentDescription = "复制闹钟", tint = textSecondary(), modifier = Modifier.size(17.dp))
+            }
+            IconButton(onClick = onDelete, modifier = Modifier.size(34.dp)) {
+                Icon(Icons.Default.Delete, contentDescription = "删除闹钟", tint = textSecondary(), modifier = Modifier.size(17.dp))
+            }
+            TextButton(onClick = onEdit, modifier = Modifier.size(width = 46.dp, height = 34.dp)) {
+                Text("编辑", fontSize = 12.sp, color = GlassPrimary)
+            }
+            Switch(checked = alarm.enabled, onCheckedChange = onToggle, colors = SwitchDefaults.colors(checkedTrackColor = GlassPrimary))
         }
-        IconButton(onClick = onDelete, modifier = Modifier.size(34.dp)) {
-            Icon(
-                Icons.Default.Delete,
-                contentDescription = "删除闹钟",
-                tint = textSecondary(),
-                modifier = Modifier.size(17.dp)
-            )
-        }
-        TextButton(onClick = onEdit, modifier = Modifier.size(width = 46.dp, height = 34.dp)) {
-            Text("编辑", fontSize = 12.sp, color = GlassPrimary)
-        }
-        Switch(
-            checked = alarm.enabled,
-            onCheckedChange = onToggle,
-            colors = SwitchDefaults.colors(checkedTrackColor = GlassPrimary)
-        )
     }
 }
 
