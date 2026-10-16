@@ -155,15 +155,14 @@ fun GroupScreen(
             bottomBar = {
                 if (selectionMode) {
                     BottomAppBar(containerColor = Color.Transparent) {
+                        TextButton(onClick = { selectedIds = groups.map { it.group.id }.toSet() }) { Text("全选", color = textPrimary()) }
                         TextButton(onClick = {
-                            applying = true
                             val picked = groups.filter { selectedIds.contains(it.group.id) }
                             picked.forEach { vm.toggleGroup(it.group, true) }
                             selectionMode = false
                             selectedIds = emptySet()
                         }) { Text("开启", color = textPrimary()) }
                         TextButton(onClick = {
-                            applying = true
                             val picked = groups.filter { selectedIds.contains(it.group.id) }
                             picked.forEach { vm.toggleGroup(it.group, false) }
                             selectionMode = false
@@ -403,15 +402,14 @@ private fun GroupDetailScreen(
             bottomBar = {
                 if (selectionMode) {
                     BottomAppBar(containerColor = Color.Transparent) {
+                        TextButton(onClick = { selectedIds = entry.alarms.map { it.id }.toSet() }) { Text("全选", color = textPrimary()) }
                         TextButton(onClick = {
-                            applying = true
                             val picked = entry.alarms.filter { selectedIds.contains(it.id) }
                             picked.forEach { vm.toggleAlarm(it, true) }
                             selectionMode = false
                             selectedIds = emptySet()
                         }) { Text("开启", color = textPrimary()) }
                         TextButton(onClick = {
-                            applying = true
                             val picked = entry.alarms.filter { selectedIds.contains(it.id) }
                             picked.forEach { vm.toggleAlarm(it, false) }
                             selectionMode = false
