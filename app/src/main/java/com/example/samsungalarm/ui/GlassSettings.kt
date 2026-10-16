@@ -15,7 +15,8 @@ data class GlassSettings(
     val bgImageUri: String? = null,
     val bgDim: Float = 0.35f,
     val corner: Float = 22f,
-    val darkMode: Int = 0
+    val darkMode: Int = 0,
+    val dpiScale: Float = 1f
 )
 
 class GlassSettingsStore(context: Context) {
@@ -30,7 +31,8 @@ class GlassSettingsStore(context: Context) {
         bgImageUri = sp.getString("bgImageUri", null),
         bgDim = sp.getFloat("bgDim", 0.35f),
         corner = sp.getFloat("corner", 22f),
-        darkMode = sp.getInt("darkMode", 0)
+        darkMode = sp.getInt("darkMode", 0),
+        dpiScale = sp.getFloat("dpiScale", 1f)
     )
 
     fun update(new: GlassSettings) {
@@ -41,6 +43,7 @@ class GlassSettingsStore(context: Context) {
             .putFloat("bgDim", new.bgDim)
             .putFloat("corner", new.corner)
             .putInt("darkMode", new.darkMode)
+            .putFloat("dpiScale", new.dpiScale)
             .apply()
     }
 

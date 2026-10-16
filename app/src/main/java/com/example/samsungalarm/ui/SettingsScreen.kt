@@ -260,6 +260,20 @@ fun SettingsScreen(onBack: () -> Unit) {
                         Text("${s.corner.toInt()}", fontSize = 13.sp, color = textPrimary(), modifier = Modifier.padding(start = 10.dp))
                     }
                 }
+                // ---- DPI ----
+                GlassPanel {
+                    Text("界面缩放 (DPI)", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textPrimary())
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Slider(
+                            value = s.dpiScale,
+                            onValueChange = { v -> store?.update(s.copy(dpiScale = v)) },
+                            valueRange = 0.75f..1.5f,
+                            modifier = Modifier.weight(1f),
+                            colors = SliderDefaults.colors(thumbColor = GlassPrimary, activeTrackColor = GlassPrimary)
+                        )
+                        Text("${(s.dpiScale * 100).toInt()}%", fontSize = 13.sp, color = textPrimary(), modifier = Modifier.padding(start = 10.dp))
+                    }
+                }
 
                 // ---- 关于 ----
                 GlassPanel {
