@@ -57,10 +57,9 @@ object NextAlarmNotifier {
         }
 
         val parts = ArrayList<String>(3)
-        parts.add(remainingText(bestTime - System.currentTimeMillis()))
         groupName[alarm.groupId]?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
         if (alarm.label.isNotBlank()) parts.add(alarm.label)
-        safeNotify(nm, buildNotification(context, "下一个闹钟", parts.joinToString(" · "), countDownTo = bestTime))
+        safeNotify(nm, buildNotification(context, "下一个闹钟 倒计时", if (parts.isEmpty()) "即将" else parts.joinToString(" · "), countDownTo = bestTime))
 
         scheduleAutoRefresh(context, bestTime)
     }

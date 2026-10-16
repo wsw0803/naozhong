@@ -251,8 +251,8 @@ private fun SlideToStop(onStop: () -> Unit) {
 
 @Composable
 private fun SlideToSnooze(minutes: Int, onSnooze: () -> Unit) {
-    val trackHeight = 60.dp
-    val thumb = 48.dp
+    val trackHeight = 66.dp
+    val thumb = 54.dp
     val startPad = 6.dp
     var widthPx by remember { mutableIntStateOf(0) }
     var offsetX by remember { mutableFloatStateOf(0f) }
@@ -285,8 +285,8 @@ private fun SlideToSnooze(minutes: Int, onSnooze: () -> Unit) {
         contentAlignment = Alignment.CenterEnd
     ) {
         Text(
-            "←  从右滑到左：延迟 ''+minutes.toString()+'' 分钟",
-            fontSize = 14.sp,
+            "←  滑动延迟 " + minutes + " 分钟",
+            fontSize = 16.sp,
             fontWeight = FontWeight.Medium,
             color = textSecondary(),
             modifier = Modifier.fillMaxWidth(),
@@ -297,14 +297,14 @@ private fun SlideToSnooze(minutes: Int, onSnooze: () -> Unit) {
                 .offset { IntOffset((widthPx - thumbPx - startPadPx + offsetX).roundToInt(), 0) }
                 .size(thumb)
                 .clip(CircleShape)
-                .background(textSecondary()),
+                .background(GlassPrimary),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 Icons.Default.ChevronLeft,
                 contentDescription = null,
                 tint = Color.White,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(28.dp)
             )
         }
     }

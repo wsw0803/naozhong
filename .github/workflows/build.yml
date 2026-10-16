@@ -33,6 +33,7 @@ jobs:
       - name: Bump patch version
         id: ver
         run: |
+          git fetch --tags --force
           FILE=app/build.gradle.kts
           CODE=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' "$FILE" | head -1)
           CUR=$(grep -oP 'versionName\s*=\s*"\K[^"]+' "$FILE" | head -1)
