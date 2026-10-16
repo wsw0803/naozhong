@@ -11,6 +11,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <application
         android:enableOnBackInvokedCallback="true"
@@ -43,6 +44,13 @@
             android:turnScreenOn="true"
             android:taskAffinity=""
             android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+
+        <service
+            android:name=".alarm.KeepAliveService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="alarm_keep_alive" />
+        </service>
 
         <service
             android:name=".alarm.AlarmService"

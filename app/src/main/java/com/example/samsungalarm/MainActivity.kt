@@ -54,6 +54,7 @@ class MainActivity : ComponentActivity() {
         // 让内容延伸到状态栏/导航栏后面，状态栏区域由主题背景接管，跟随深浅色
         enableEdgeToEdge()
         requestPermissionsIfNeeded()
+        com.example.samsungalarm.alarm.KeepAliveService.start(this)
 
         val store = GlassSettingsStore(applicationContext)
 
