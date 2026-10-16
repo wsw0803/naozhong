@@ -22,6 +22,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,6 +40,7 @@ import com.example.samsungalarm.ui.LocalGlassSettings
 import com.example.samsungalarm.ui.LocalGlassStore
 import com.example.samsungalarm.ui.SettingsScreen
 import com.example.samsungalarm.ui.theme.AlarmTheme
+import com.example.samsungalarm.ui.theme.AppBackground
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -70,6 +74,9 @@ class MainActivity : ComponentActivity() {
                         showSettings = false
                     }
 
+                    // 背景固定在最底层，切换页面时只有内容滑动
+                    Box(Modifier.fillMaxSize()) {
+                    AppBackground()
                     // 页面切换动画：进入设置从右滑入，返回时对称滑回
                     AnimatedContent(
                         targetState = showSettings,
@@ -90,6 +97,7 @@ class MainActivity : ComponentActivity() {
                         } else {
                             AlarmRoot(onOpenSettings = { showSettings = true })
                         }
+                    }
                     }
                 }
             }

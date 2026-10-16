@@ -1,5 +1,7 @@
 package com.example.samsungalarm.alarm
 
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -34,6 +36,20 @@ class KeepAliveService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        // 应用被从最近任务划掉时，1 秒后自动拉起保活服务，保证闹钟继续生效
+        try {
+            val am = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            val i = Intent(this, KeepAliveService::class.java)
+            var flags = PendingIntent.FLAG_UPDATE_CURRENT
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags = flags or PendingIntent.FLAG_IMMUTABLE
+            val pi = PendingIntent.getService(this, 91, i, flags)
+            val at = System.currentTimeMillis() + 1000L
+            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
+        } catch (_: Exception) { }
+        super.onTaskRemoved(rootIntent)
+    }
 
     override fun onDestroy() {
         running = false

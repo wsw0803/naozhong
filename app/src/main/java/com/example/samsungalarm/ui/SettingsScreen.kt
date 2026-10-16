@@ -113,7 +113,6 @@ fun SettingsScreen(onBack: () -> Unit) {
     }
 
     Box(Modifier.fillMaxSize()) {
-        AppBackground()
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {

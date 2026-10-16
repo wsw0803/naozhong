@@ -127,7 +127,6 @@ fun GroupScreen(
             )
         } else {
     Box(Modifier.fillMaxSize()) {
-        AppBackground()
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
@@ -363,7 +362,6 @@ private fun GroupDetailScreen(
     }
 
     Box(Modifier.fillMaxSize()) {
-        AppBackground()
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
