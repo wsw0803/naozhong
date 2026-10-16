@@ -59,7 +59,7 @@ class KeepAliveService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         running = true
         val placeholder = NextAlarmNotifier.buildNotification(
-            this, "闹钟守护中", "正在守护闹钟"
+            this, "qian❤️wei", ""
         )
         startForeground(NextAlarmNotifier.NOTI_ID, placeholder)
         refreshContent()
