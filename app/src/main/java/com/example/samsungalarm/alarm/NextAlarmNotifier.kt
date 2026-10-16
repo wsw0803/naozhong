@@ -37,8 +37,11 @@ object NextAlarmNotifier {
 
         var bestAlarm: Alarm? = null
         var bestTime = Long.MAX_VALUE
+        var bestSnooze: Long? = null
         alarms.forEach { a ->
             if (a.enabled && (groupEnabled[a.groupId] ?: true)) {
+                val sn = SnoozeStore.get(context, a.id)
+                if (sn != null) { if (sn < bestTime) { bestTime = sn; bestAlarm = a; bestSnooze = sn }; return@forEach }
                 val t = nextTriggerIncludingPast(a, now)
                 if (t != null && t < bestTime) { bestTime = t; bestAlarm = a }
             }
@@ -59,6 +62,7 @@ object NextAlarmNotifier {
         val parts = ArrayList<String>(3)
         groupName[alarm.groupId]?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
         if (alarm.label.isNotBlank()) parts.add(alarm.label)
+        if (bestSnooze != null) parts.add("（延迟）")
         safeNotify(nm, buildNotification(context, "wei❤️qian", if (parts.isEmpty()) "" else parts.joinToString(" · "), countDownTo = bestTime))
 
         scheduleAutoRefresh(context, bestTime)

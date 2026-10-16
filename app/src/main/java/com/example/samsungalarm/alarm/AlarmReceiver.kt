@@ -53,6 +53,7 @@ class AlarmReceiver : BroadcastReceiver() {
                     return@launch
                 }
 
+                SnoozeStore.clear(context, alarm.id)
                 AlarmService.start(
                     context = context,
                     alarmId = alarm.id,

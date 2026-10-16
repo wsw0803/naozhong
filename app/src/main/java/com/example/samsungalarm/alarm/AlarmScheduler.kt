@@ -34,7 +34,9 @@ object AlarmScheduler {
     fun schedule(c: Context, alarm: Alarm, at: Long) = setAlarm(c, alarm.id, at)
 
     fun scheduleSnooze(c: Context, alarmId: Long, minutes: Int) {
-        setAlarm(c, alarmId, System.currentTimeMillis() + minutes.coerceAtLeast(1) * 60000L, snooze = true)
+        val at = System.currentTimeMillis() + minutes.coerceAtLeast(1) * 60000L
+        SnoozeStore.set(c, alarmId, at)
+        setAlarm(c, alarmId, at, snooze = true)
     }
 
     private fun setAlarm(c: Context, id: Long, at: Long, snooze: Boolean = false) {
