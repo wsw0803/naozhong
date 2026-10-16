@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -28,12 +30,24 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Read version name
+      - name: Bump patch version
         id: ver
         run: |
-          VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts | head -1)
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Detected version: $VERSION"
+          FILE=app/build.gradle.kts
+          CODE=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' "$FILE" | head -1)
+          CUR=$(grep -oP 'versionName\s*=\s*"\K[^"]+' "$FILE" | head -1)
+          LATEST=$(git tag -l 'v*' | sort -V | tail -1)
+          BASE=${LATEST#v}
+          if [ -z "$BASE" ]; then BASE=$CUR; fi
+          IFS='.' read -r MAJ MIN PAT <<< "$BASE"
+          MAJ=${MAJ:-0}; MIN=${MIN:-0}; PAT=${PAT:-0}
+          PAT=$((PAT+1))
+          NEW="$MAJ.$MIN.$PAT"
+          CODE=$((CODE+1))
+          sed -i "s/versionCode = .*/versionCode = $CODE/" "$FILE"
+          sed -i "s/versionName = \".*\"/versionName = \"$NEW\"/" "$FILE"
+          echo "version=$NEW" >> "$GITHUB_OUTPUT"
+          echo "Next version: $NEW (code $CODE)"
 
       - name: Build release APK
         run: gradle assembleRelease --no-daemon --stacktrace
@@ -41,15 +55,15 @@ jobs:
       - name: Rename APK
         run: |
           mkdir -p out
-          cp app/build/outputs/apk/release/app-release.apk "out/闹钟-v${{ steps.ver.outputs.version }}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "out/naozhong-v${{ steps.ver.outputs.version }}.apk"
           ls -l out
 
       - name: Publish APK to Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.ver.outputs.version }}
-          name: 闹钟 v${{ steps.ver.outputs.version }}
-          files: out/闹钟-v${{ steps.ver.outputs.version }}.apk
+          name: naozhong v${{ steps.ver.outputs.version }}
+          files: out/naozhong-v${{ steps.ver.outputs.version }}.apk
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
