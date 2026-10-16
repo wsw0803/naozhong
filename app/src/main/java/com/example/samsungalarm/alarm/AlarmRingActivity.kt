@@ -202,7 +202,7 @@ private fun SlideToStop(onStop: () -> Unit) {
 
     Box(
         modifier = Modifier
-            .fillMaxWidth()
+            .fillMaxWidth(0.82f)
             .height(trackHeight)
             .clip(RoundedCornerShape(trackHeight / 2))
             .background(glassFill())
@@ -263,7 +263,7 @@ private fun SlideToSnooze(minutes: Int, onSnooze: () -> Unit) {
 
     Box(
         modifier = Modifier
-            .fillMaxWidth()
+            .fillMaxWidth(0.82f)
             .height(trackHeight)
             .clip(RoundedCornerShape(trackHeight / 2))
             .background(glassFill())
