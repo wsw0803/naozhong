@@ -182,7 +182,14 @@ fun AlarmTheme(
             val window = (view.context as Activity).window
             window.statusBarColor = Color.Transparent.toArgb()
             window.navigationBarColor = Color.Transparent.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            // 窗口背景跟随主题：edge-to-edge 下状态栏/导航栏区域透出的是它，避免浅色模式固定白色
+            window.decorView.setBackgroundColor(
+                (if (darkTheme) DarkBgMid else LightBgMid).toArgb()
+            )
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = !darkTheme
+                isAppearanceLightNavigationBars = !darkTheme
+            }
         }
     }
     MaterialTheme(colorScheme = colors, content = content)

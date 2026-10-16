@@ -35,8 +35,9 @@ class AlarmService : Service() {
         const val EXTRA_RINGTONE = "ringtone"
         const val EXTRA_VIBRATE = "vibrate"
 
-        private const val CHANNEL_ID = "alarm_ringing"
         private const val NOTI_ID = 90001
+
+        const val CHANNEL_ID = "alarm_ringing"
 
         fun start(
             context: Context,

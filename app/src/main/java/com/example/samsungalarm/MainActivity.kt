@@ -12,6 +12,7 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
@@ -26,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.IntOffset
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.samsungalarm.alarm.AlarmScheduler
 import com.example.samsungalarm.ui.AlarmViewModel
 import com.example.samsungalarm.ui.GlassSettingsStore
 import com.example.samsungalarm.ui.GroupScreen
@@ -33,14 +35,22 @@ import com.example.samsungalarm.ui.LocalGlassSettings
 import com.example.samsungalarm.ui.LocalGlassStore
 import com.example.samsungalarm.ui.SettingsScreen
 import com.example.samsungalarm.ui.theme.AlarmTheme
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
     private val requestNotif =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            // 通知权限刚授予时立即刷新常驻通知
+            if (granted) refreshAlarmState()
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 让内容延伸到状态栏/导航栏后面，状态栏区域由主题背景接管，跟随深浅色
+        enableEdgeToEdge()
         requestPermissionsIfNeeded()
 
         val store = GlassSettingsStore(applicationContext)
@@ -79,6 +89,26 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 每次回到前台都重新登记闹钟并刷新常驻"下一个闹钟"通知，
+        // 覆盖首次启动、从系统设置授权返回、通知权限刚授予等场景。
+        refreshAlarmState()
+    }
+
+    /** 重新登记全部闹钟 + 刷新常驻通知。幂等，可重复调用。 */
+    private fun refreshAlarmState() {
+        val app = application as AlarmApp
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val alarms = app.repository.allAlarms()
+                val groups = app.repository.allGroups()
+                AlarmScheduler.rescheduleAll(applicationContext, alarms, groups)
+            } catch (_: Exception) {
             }
         }
     }

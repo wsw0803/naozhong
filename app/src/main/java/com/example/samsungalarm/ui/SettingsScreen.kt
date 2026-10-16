@@ -1,6 +1,7 @@
 package com.example.samsungalarm.ui
 
 import android.app.AlarmManager
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -38,7 +39,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,6 +52,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import com.example.samsungalarm.alarm.AlarmService
 import com.example.samsungalarm.ui.theme.AppBackground
 import com.example.samsungalarm.ui.theme.GlassPrimary
 import com.example.samsungalarm.ui.theme.glassBorder
@@ -97,7 +100,8 @@ fun SettingsScreen(onBack: () -> Unit) {
         batteryOk = PermissionUtils.ignoringBattery(ctx)
     }
 
-    LaunchedEffect(Unit) { refreshPerms() }
+    // 每次回到前台（含从系统设置授权返回）都刷新一次权限状态
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refreshPerms() }
 
     Box(Modifier.fillMaxSize()) {
         AppBackground()
@@ -147,7 +151,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     PermRow("精确闹钟", exactOk) { PermissionUtils.openExactAlarmSettings(ctx) }
                     PermRow("悬浮窗", overlayOk) { PermissionUtils.openOverlaySettings(ctx) }
                     PermRow("后台运行（电池优化白名单）", batteryOk) { PermissionUtils.openBatterySettings(ctx) }
-                    PermRow("通知渠道（响铃/静音）", null) { PermissionUtils.openChannelSettings(ctx) }
+                    PermRow("通知渠道（响铃/静音）", PermissionUtils.ringingChannelEnabled(ctx)) { PermissionUtils.openChannelSettings(ctx) }
                     PermRow("后台弹出界面（部分国产 ROM）", null) { PermissionUtils.openAppDetailSettings(ctx) }
 
                     Spacer(Modifier.height(6.dp))
@@ -331,6 +335,17 @@ object PermissionUtils {
     }
 
     fun canDrawOverlay(ctx: Context): Boolean = Settings.canDrawOverlays(ctx)
+
+    /**
+     * 响铃通知渠道是否可用。
+     * 渠道还没创建（首次响铃前）视为可用；被用户屏蔽（IMPORTANCE_NONE）才提示去开启。
+     */
+    fun ringingChannelEnabled(ctx: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return true
+        val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val ch = nm.getNotificationChannel(AlarmService.CHANNEL_ID) ?: return true
+        return ch.importance != NotificationManager.IMPORTANCE_NONE
+    }
 
     fun ignoringBattery(ctx: Context): Boolean {
         val pm = ctx.getSystemService(Context.POWER_SERVICE) as PowerManager
