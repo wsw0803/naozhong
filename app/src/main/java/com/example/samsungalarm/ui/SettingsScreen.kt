@@ -59,6 +59,7 @@ import com.example.samsungalarm.alarm.AlarmService
 import com.example.samsungalarm.BuildConfig
 import com.example.samsungalarm.update.UpdateChecker
 import com.example.samsungalarm.update.UpdateInfo
+import com.example.samsungalarm.update.UpdateInstaller
 import com.example.samsungalarm.ui.theme.AppBackground
 import com.example.samsungalarm.ui.theme.GlassPrimary
 import com.example.samsungalarm.ui.theme.glassBorder
@@ -102,6 +103,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     var checking by remember { mutableStateOf(false) }
     var updateMsg by remember { mutableStateOf<String?>(null) }
     var newVersion by remember { mutableStateOf<UpdateInfo?>(null) }
+    var downloading by remember { mutableStateOf(false) }
 
     fun refreshPerms() {
         notifOk = PermissionUtils.hasNotification(ctx)
@@ -172,16 +174,20 @@ fun SettingsScreen(onBack: () -> Unit) {
                     PermRow("悬浮窗", overlayOk) { PermissionUtils.openOverlaySettings(ctx) }
                     PermRow("后台运行（电池优化白名单）", batteryOk) { PermissionUtils.openBatterySettings(ctx) }
                     PermRow("通知渠道（响铃/静音）", PermissionUtils.ringingChannelEnabled(ctx)) { PermissionUtils.openChannelSettings(ctx) }
-                    PermRow("自启动 / 关联启动", autoStartOk) {
-                        PermissionUtils.openAutoStartSettings(ctx)
-                        PermissionUtils.acknowledge(ctx, PermissionUtils.ACK_AUTO_START)
-                        refreshPerms()
-                    }
-                    PermRow("后台弹出界面（部分国产 ROM）", bgPopupOk) {
-                        PermissionUtils.openAppDetailSettings(ctx)
-                        PermissionUtils.acknowledge(ctx, PermissionUtils.ACK_BG_POPUP)
-                        refreshPerms()
-                    }
+                    PermRow("自启动 / 关联启动", autoStartOk,
+                        onClick = { PermissionUtils.openAutoStartSettings(ctx) },
+                        onConfirm = {
+                            PermissionUtils.toggleAck(ctx, PermissionUtils.ACK_AUTO_START)
+                            refreshPerms()
+                        }
+                    )
+                    PermRow("后台弹出界面（部分国产 ROM）", bgPopupOk,
+                        onClick = { PermissionUtils.openAppDetailSettings(ctx) },
+                        onConfirm = {
+                            PermissionUtils.toggleAck(ctx, PermissionUtils.ACK_BG_POPUP)
+                            refreshPerms()
+                        }
+                    )
 
                     Spacer(Modifier.height(6.dp))
                     TextButton(onClick = { refreshPerms() }) {
@@ -308,12 +314,36 @@ fun SettingsScreen(onBack: () -> Unit) {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(10.dp))
-                                .clickable { openUrl(ctx, latest.apkUrl ?: latest.releaseUrl) }
+                                .clickable {
+                                    if (downloading) return@clickable
+                                    val apk = latest.apkUrl
+                                    if (apk == null) {
+                                        openUrl(ctx, latest.releaseUrl)
+                                        return@clickable
+                                    }
+                                    downloading = true
+                                    updateMsg = "开始下载…"
+                                    UpdateInstaller.download(ctx, apk, { pct ->
+                                        updateMsg = "下载中 " + pct + "%"
+                                    }) { res ->
+                                        downloading = false
+                                        res.onSuccess { f ->
+                                            updateMsg = "下载完成，正在拉起安装"
+                                            try {
+                                                UpdateInstaller.install(ctx, f)
+                                            } catch (e: Exception) {
+                                                updateMsg = "安装失败：" + (e.message ?: "请手动安装")
+                                            }
+                                        }.onFailure { e ->
+                                            updateMsg = "下载失败：" + (e.message ?: "网络错误")
+                                        }
+                                    }
+                                }
                                 .padding(vertical = 9.dp, horizontal = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                if (latest.apkUrl != null) "下载新版 APK" else "前往 Release 页面",
+                                if (latest.apkUrl != null) "下载并安装新版" else "前往 Release 页面",
                                 fontSize = 13.sp, color = textPrimary(), modifier = Modifier.weight(1f)
                             )
                             Text("下载 →", fontSize = 13.sp, color = GlassPrimary, fontWeight = FontWeight.Medium)
@@ -353,22 +383,38 @@ private fun openUrl(ctx: Context, url: String) {
 }
 
 @Composable
-private fun PermRow(name: String, ok: Boolean?, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 9.dp, horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(name, fontSize = 13.sp, color = textPrimary(), modifier = Modifier.weight(1f))
-        val (label, color) = when (ok) {
-            true -> "已开启" to Color(0xFF2FA84F)
-            false -> "去开启" to Color(0xFFE0533D)
-            null -> "去设置" to GlassPrimary
+private fun PermRow(
+    name: String,
+    ok: Boolean?,
+    onClick: () -> Unit,
+    onConfirm: (() -> Unit)? = null
+) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .clickable(onClick = onClick)
+                .padding(vertical = 9.dp, horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(name, fontSize = 13.sp, color = textPrimary(), modifier = Modifier.weight(1f))
+            val (label, color) = when (ok) {
+                true -> "已开启" to Color(0xFF2FA84F)
+                false -> "去开启" to Color(0xFFE0533D)
+                null -> "去设置" to GlassPrimary
+            }
+            Text(label, fontSize = 13.sp, color = color, fontWeight = FontWeight.Medium)
         }
-        Text(label, fontSize = 13.sp, color = color, fontWeight = FontWeight.Medium)
+        if (onConfirm != null) {
+            TextButton(onClick = onConfirm, modifier = Modifier.padding(start = 4.dp)) {
+                Text(
+                    if (ok == true) "撤销「已开启」标记" else "我已在系统里开启，点此确认",
+                    fontSize = 11.sp,
+                    color = if (ok == true) textSecondary() else GlassPrimary
+                )
+            }
+        }
     }
 }
 
@@ -495,6 +541,12 @@ object PermissionUtils {
 
     fun acknowledge(ctx: Context, key: String) {
         prefs(ctx).edit().putBoolean(key, true).apply()
+    }
+
+    /** 在「已开启」与「未确认」之间切换：不再点一下返回就自动算成功。 */
+    fun toggleAck(ctx: Context, key: String) {
+        val cur = prefs(ctx).getBoolean(key, false)
+        prefs(ctx).edit().putBoolean(key, !cur).apply()
     }
 
     /** 自启动设置页：不同厂商的组件名各不相同，逐个尝试，失败则退回应用详情页。 */
