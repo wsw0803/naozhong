@@ -48,8 +48,11 @@ object NextAlarmNotifier {
 
         val alarm = bestAlarm
         if (alarm == null) {
-            if (foreground) safeNotify(nm, buildNotification(context, "闹钟守护中", "暂无闹钟"))
-            else nm.cancel(NOTI_ID)
+            if (foreground || KeepAliveService.running) {
+                safeNotify(nm, buildNotification(context, "闹钟守护中", "暂无闹钟"))
+            } else {
+                nm.cancel(NOTI_ID)
+            }
             return
         }
 

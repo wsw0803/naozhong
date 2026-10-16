@@ -17,6 +17,10 @@ import kotlinx.coroutines.launch
 class KeepAliveService : Service() {
 
     companion object {
+        @Volatile
+        var running = false
+            private set
+
         fun start(context: Context) {
             val i = Intent(context, KeepAliveService::class.java)
             try {
@@ -31,7 +35,13 @@ class KeepAliveService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onDestroy() {
+        running = false
+        super.onDestroy()
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        running = true
         val placeholder = NextAlarmNotifier.buildNotification(
             this, "闹钟守护中", "正在守护闹钟"
         )
