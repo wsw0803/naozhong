@@ -109,11 +109,11 @@ fun GroupScreen(
         transitionSpec = {
             val spec = tween<IntOffset>(durationMillis = 300)
             if (targetState != null) {
-                (slideInHorizontally(spec) { it } + fadeIn(spec)) togetherWith
-                        (slideOutHorizontally(spec) { -it } + fadeOut(spec))
+                (slideInHorizontally(spec) { it } + fadeIn()) togetherWith
+                        (slideOutHorizontally(spec) { -it } + fadeOut())
             } else {
-                (slideInHorizontally(spec) { -it } + fadeIn(spec)) togetherWith
-                        (slideOutHorizontally(spec) { it } + fadeOut(spec))
+                (slideInHorizontally(spec) { -it } + fadeIn()) togetherWith
+                        (slideOutHorizontally(spec) { it } + fadeOut())
             }
         },
         label = "groupNav"
