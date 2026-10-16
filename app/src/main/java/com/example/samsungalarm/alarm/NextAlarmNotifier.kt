@@ -65,7 +65,14 @@ object NextAlarmNotifier {
             cal.get(Calendar.HOUR_OF_DAY),
             cal.get(Calendar.MINUTE)
         )
-        val text = if (alarm.label.isBlank()) timeText else timeText + " · " + alarm.label
+        val nowCal = Calendar.getInstance()
+        val sameDay = cal.get(Calendar.YEAR) == nowCal.get(Calendar.YEAR) &&
+                cal.get(Calendar.DAY_OF_YEAR) == nowCal.get(Calendar.DAY_OF_YEAR)
+        val tomorrowCal = (nowCal.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 1) }
+        val isTomorrow = cal.get(Calendar.YEAR) == tomorrowCal.get(Calendar.YEAR) &&
+                cal.get(Calendar.DAY_OF_YEAR) == tomorrowCal.get(Calendar.DAY_OF_YEAR)
+        val dayPrefix = when { sameDay -> "今天 "; isTomorrow -> "明天 "; else -> "" }
+        val text = dayPrefix + timeText + (if (alarm.label.isBlank()) "" else " · " + alarm.label)
 
         var flags = PendingIntent.FLAG_UPDATE_CURRENT
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {

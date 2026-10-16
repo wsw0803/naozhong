@@ -76,7 +76,7 @@ fun Alarm.nextTriggerAtMillis(now: java.util.Calendar): Long? {
     cal.set(java.util.Calendar.MILLISECOND, 0)
 
     if (repeatDays.isEmpty()) {
-        if (cal.timeInMillis <= from) cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+        if (cal.timeInMillis <= from) return null
         return cal.timeInMillis
     }
     for (i in 0..7) {

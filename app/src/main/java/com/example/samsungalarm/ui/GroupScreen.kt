@@ -385,7 +385,7 @@ private fun GlassAlarmRow(
                 fontWeight = FontWeight.Medium,
                 color = if (active) textPrimary() else textSecondary()
             )
-            Text(buildSubtitle(alarm), fontSize = 11.sp, color = textSecondary())
+            Text(buildSubtitle(alarm) + (if (selectionMode) (if (alarm.enabled) " · 已开启" else " · 已关闭") else ""), fontSize = 11.sp, color = textSecondary())
         }
         if (!selectionMode) {
             IconButton(onClick = onDuplicate, modifier = Modifier.size(34.dp)) {

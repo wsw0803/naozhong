@@ -34,15 +34,15 @@ jobs:
       - name: Rename APK
         run: |
           mkdir -p out
-          cp app/build/outputs/apk/debug/app-debug.apk "out/闹钟-v1.2.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "out/闹钟-v1.3.apk"
           ls -l out
 
       - name: Publish APK to Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.2
-          name: 闹钟 v1.2
-          files: out/闹钟-v1.2.apk
+          tag_name: v1.3
+          name: 闹钟 v1.3
+          files: out/闹钟-v1.3.apk
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
