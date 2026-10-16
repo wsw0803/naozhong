@@ -16,121 +16,110 @@ import java.util.Calendar
 
 /**
  * 常驻通知：显示下一个即将响铃的闹钟。
- * 规则：
- *  - 只要闹钟开启且所属分组开启，就参与候选（过期的也参与，自动顺延到下一次）。
- *  - 在所有候选里取「下一次触发时间」最近的那个，与谁先开启、列表顺序无关。
- *  - 文案显示还剩多久，例如「23小时53分钟后 · 分组 · 标签」。
- *  - 到点后自动刷新，开关闹钟也会重新刷新。
+ * 同时被前台保活服务复用（foreground = true 时无闹钟显示占位，不 cancel 通知）。
  */
 object NextAlarmNotifier {
 
-    private const val CHANNEL_ID = "next_alarm"
-    private const val NOTI_ID = 90002
+    const val CHANNEL_ID = "next_alarm"
+    const val NOTI_ID = 90002
     private const val REFRESH_REQUEST = 990001
 
-    fun update(context: Context, alarms: List<Alarm>, groups: List<AlarmGroup>) {
+    fun update(
+        context: Context,
+        alarms: List<Alarm>,
+        groups: List<AlarmGroup>,
+        foreground: Boolean = false
+    ) {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val groupEnabled = groups.associate { it.id to it.enabled }
         val groupName = groups.associate { it.id to it.name }
         val now = Calendar.getInstance()
 
         var bestAlarm: Alarm? = null
-        var bestTime: Long = Long.MAX_VALUE
+        var bestTime = Long.MAX_VALUE
         alarms.forEach { a ->
-            val active = a.enabled && (groupEnabled[a.groupId] ?: true)
-            if (active) {
+            if (a.enabled && (groupEnabled[a.groupId] ?: true)) {
                 val t = nextTriggerIncludingPast(a, now)
-                if (t != null && t < bestTime) {
-                    bestTime = t
-                    bestAlarm = a
-                }
+                if (t != null && t < bestTime) { bestTime = t; bestAlarm = a }
             }
         }
+
+        ensureChannel(nm)
 
         val alarm = bestAlarm
         if (alarm == null) {
-            nm.cancel(NOTI_ID)
+            if (foreground) safeNotify(nm, buildNotification(context, "闹钟守护中", "暂无闹钟"))
+            else nm.cancel(NOTI_ID)
             return
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val ch = NotificationChannel(
-                CHANNEL_ID,
-                "待响闹钟",
-                NotificationManager.IMPORTANCE_DEFAULT
-            ).apply {
-                description = "显示下一个即将响铃的闹钟"
-                setShowBadge(false)
-            }
-            nm.createNotificationChannel(ch)
-        }
-
-        val parts = ArrayList<String>()
+        val parts = ArrayList<String>(3)
         parts.add(remainingText(bestTime - System.currentTimeMillis()))
-        val gName = groupName[alarm.groupId]
-        if (!gName.isNullOrBlank()) parts.add(gName)
+        groupName[alarm.groupId]?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
         if (alarm.label.isNotBlank()) parts.add(alarm.label)
-        val text = parts.joinToString(" · ")
+        safeNotify(nm, buildNotification(context, "下一个闹钟", parts.joinToString(" · ")))
 
-        var flags = PendingIntent.FLAG_UPDATE_CURRENT
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            flags = flags or PendingIntent.FLAG_IMMUTABLE
+        scheduleAutoRefresh(context, bestTime)
+    }
+
+    private fun safeNotify(nm: NotificationManager, noti: android.app.Notification) {
+        try { nm.notify(NOTI_ID, noti) } catch (_: Exception) { }
+    }
+
+    private fun ensureChannel(nm: NotificationManager) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (nm.getNotificationChannel(CHANNEL_ID) == null) {
+                val ch = NotificationChannel(
+                    CHANNEL_ID, "待响闹钟", NotificationManager.IMPORTANCE_LOW
+                ).apply {
+                    description = "显示下一个即将响铃的闹钟"
+                    setShowBadge(false)
+                }
+                nm.createNotificationChannel(ch)
+            }
         }
-        val openPi = PendingIntent.getActivity(
-            context,
-            3,
-            Intent(context, MainActivity::class.java),
-            flags
-        )
+    }
 
+    fun buildNotification(
+        context: Context, title: String, text: String
+    ): android.app.Notification {
+        var flags = PendingIntent.FLAG_UPDATE_CURRENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags = flags or PendingIntent.FLAG_IMMUTABLE
+        val openPi = PendingIntent.getActivity(
+            context, 3, Intent(context, MainActivity::class.java), flags
+        )
         val noti = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setContentTitle("下一个闹钟")
+            .setContentTitle(title)
             .setContentText(text)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_STATUS)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(openPi)
             .build()
-
-        try {
-            nm.notify(NOTI_ID, noti)
-        } catch (_: Exception) {
-        }
-
-        scheduleAutoRefresh(context, bestTime)
+        return noti
     }
 
-    /**
-     * 计算闹钟的下一次触发时间：
-     *  - 重复闹钟：交给 nextTriggerAtMillis，自然顺延到下一个重复日。
-     *  - 一次性闹钟：今天的时间点已过就顺延到明天同一时刻（保证始终显示未来最近的那个）。
-     */
     private fun nextTriggerIncludingPast(a: Alarm, now: Calendar): Long? {
-        if (a.repeatDays.isNotEmpty()) {
-            return a.nextTriggerAtMillis(now)
-        }
+        if (a.repeatDays.isNotEmpty()) return a.nextTriggerAtMillis(now)
         val cal = now.clone() as Calendar
         cal.set(Calendar.HOUR_OF_DAY, a.hour)
         cal.set(Calendar.MINUTE, a.minute)
         cal.set(Calendar.SECOND, 0)
         cal.set(Calendar.MILLISECOND, 0)
-        if (cal.timeInMillis <= now.timeInMillis) {
-            cal.add(Calendar.DAY_OF_YEAR, 1)
-        }
+        if (cal.timeInMillis <= now.timeInMillis) cal.add(Calendar.DAY_OF_YEAR, 1)
         return cal.timeInMillis
     }
 
-    /** 把剩余毫秒转成「X天X小时后 / X小时X分钟后 / X分钟后 / 即将响铃」。 */
     private fun remainingText(remainMs: Long): String {
         if (remainMs <= 0) return "即将响铃"
         val totalMin = remainMs / 60000L
         return when {
             totalMin < 1 -> "即将响铃"
-            totalMin < 60 -> totalMin.toString() + "分钟后"
-            totalMin < 1440 -> (totalMin / 60).toString() + "小时" + (totalMin % 60).toString() + "分钟后"
-            else -> (totalMin / 1440).toString() + "天" + ((totalMin % 1440) / 60).toString() + "小时后"
+            totalMin < 60 -> "${totalMin}分钟后"
+            totalMin < 1440 -> "${totalMin / 60}小时${totalMin % 60}分钟后"
+            else -> "${totalMin / 1440}天${(totalMin % 1440) / 60}小时后"
         }
     }
 
@@ -141,9 +130,7 @@ object NextAlarmNotifier {
                 action = AlarmReceiver.ACTION_REFRESH
             }
             var flags = PendingIntent.FLAG_UPDATE_CURRENT
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                flags = flags or PendingIntent.FLAG_IMMUTABLE
-            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags = flags or PendingIntent.FLAG_IMMUTABLE
             val pi = PendingIntent.getBroadcast(context, REFRESH_REQUEST, intent, flags)
             val at = triggerAt + 3000L
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !manager.canScheduleExactAlarms()) {
@@ -151,7 +138,6 @@ object NextAlarmNotifier {
             } else {
                 manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
             }
-        } catch (_: Exception) {
-        }
+        } catch (_: Exception) { }
     }
 }

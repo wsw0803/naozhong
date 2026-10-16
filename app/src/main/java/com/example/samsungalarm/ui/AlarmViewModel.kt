@@ -51,12 +51,10 @@ class AlarmViewModel(app: Application) : AndroidViewModel(app) {
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private fun reschedule() {
-        viewModelScope.launch {
-            val alarms = repo.allAlarms()
-            val groups = repo.allGroups()
-            AlarmScheduler.rescheduleAll(getApplication(), alarms, groups)
-        }
+    private suspend fun reschedule() {
+        val alarms = repo.allAlarms()
+        val groups = repo.allGroups()
+        AlarmScheduler.rescheduleAll(getApplication(), alarms, groups)
     }
 
     fun addGroup(name: String) = viewModelScope.launch { repo.addGroup(name) }
