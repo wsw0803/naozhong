@@ -58,6 +58,15 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -92,16 +101,31 @@ fun GroupScreen(
         }
     }
 
-    val opened = groups.firstOrNull { it.group.id == openedGroupId }
-    if (opened != null) {
-        GroupDetailScreen(
-            vm = vm,
-            entry = opened,
-            onBack = { openedGroupId = null }
-        )
-        return
-    }
+    BackHandler(enabled = openedGroupId != null) { openedGroupId = null }
 
+    AnimatedContent(
+        targetState = openedGroupId,
+        modifier = Modifier.fillMaxSize(),
+        transitionSpec = {
+            val spec = tween<IntOffset>(durationMillis = 300)
+            if (targetState != null) {
+                (slideInHorizontally(spec) { it } + fadeIn(spec)) togetherWith
+                        (slideOutHorizontally(spec) { -it } + fadeOut(spec))
+            } else {
+                (slideInHorizontally(spec) { -it } + fadeIn(spec)) togetherWith
+                        (slideOutHorizontally(spec) { it } + fadeOut(spec))
+            }
+        },
+        label = "groupNav"
+    ) { gid ->
+        val opened = groups.firstOrNull { it.group.id == gid }
+        if (gid != null && opened != null) {
+            GroupDetailScreen(
+                vm = vm,
+                entry = opened,
+                onBack = { openedGroupId = null }
+            )
+        } else {
     Box(Modifier.fillMaxSize()) {
         AppBackground()
         Scaffold(
@@ -195,6 +219,8 @@ fun GroupScreen(
         }
         if (applying) {
             ApplyingOverlay()
+        }
+    }
         }
     }
 

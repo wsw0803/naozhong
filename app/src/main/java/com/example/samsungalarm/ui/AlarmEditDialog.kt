@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.samsungalarm.data.Alarm
 import com.example.samsungalarm.ui.theme.GlassPrimary
+import com.example.samsungalarm.ui.LocalGlassSettings
 import com.example.samsungalarm.ui.theme.glassFill
 import com.example.samsungalarm.ui.theme.isDark
 import com.example.samsungalarm.ui.theme.textPrimary
@@ -251,7 +252,8 @@ fun AlarmEditDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("取消", color = textSecondary()) }
         },
-        containerColor = if (isDark()) Color(0xFF1B1F2A) else Color(0xFFF7F9FC)
+        shape = RoundedCornerShape(LocalGlassSettings.current.corner.dp),
+        containerColor = glassFill()
     )
 }
 
