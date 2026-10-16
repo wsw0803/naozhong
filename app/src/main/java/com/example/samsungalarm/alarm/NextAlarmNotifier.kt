@@ -1,5 +1,6 @@
 package com.example.samsungalarm.alarm
 
+import android.app.AlarmManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -16,13 +17,14 @@ import java.util.Calendar
 /**
  * 常驻通知：显示下一个即将响铃的闹钟。
  * 规则：在所有「已开启且所属分组已开启」的闹钟里，严格按绝对触发时间取最近的一个，
- * 与谁先开启、列表顺序无关；没有任何待响闹钟时移除通知。
- * 文案展示：今天/明天 + 时间 + 分组名 + 标签。
+ * 与谁先开启、列表顺序无关；已经过期的一次性闹钟不参与，没有任何待响闹钟时移除通知。
+ * 到点后会自动刷新一次，让通知栏随时间一直向前推进。
  */
 object NextAlarmNotifier {
 
     private const val CHANNEL_ID = "next_alarm"
     private const val NOTI_ID = 90002
+    private const val REFRESH_REQUEST = 990001
 
     fun update(context: Context, alarms: List<Alarm>, groups: List<AlarmGroup>) {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -112,6 +114,33 @@ object NextAlarmNotifier {
 
         try {
             nm.notify(NOTI_ID, noti)
+        } catch (_: Exception) {
+        }
+
+        scheduleAutoRefresh(context, bestTime)
+    }
+
+    /**
+     * 在当前显示的闹钟时刻之后安排一次刷新：
+     * 这样即使没有任何交互，通知栏也会自动前移，不会继续挂着已过期的那一个。
+     */
+    private fun scheduleAutoRefresh(context: Context, triggerAt: Long) {
+        try {
+            val manager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            val intent = Intent(context, AlarmReceiver::class.java).apply {
+                action = AlarmReceiver.ACTION_REFRESH
+            }
+            var flags = PendingIntent.FLAG_UPDATE_CURRENT
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                flags = flags or PendingIntent.FLAG_IMMUTABLE
+            }
+            val pi = PendingIntent.getBroadcast(context, REFRESH_REQUEST, intent, flags)
+            val at = triggerAt + 3000L
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !manager.canScheduleExactAlarms()) {
+                manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
+            } else {
+                manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
+            }
         } catch (_: Exception) {
         }
     }
