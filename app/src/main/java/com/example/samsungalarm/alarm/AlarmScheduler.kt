@@ -13,7 +13,7 @@ import java.util.Calendar
 object AlarmScheduler {
     private const val REQ = 10000
     private const val SHOW = 30000
-    private const val SNOOZE = 20000
+    private const val SNOOZE = 1000000
 
     fun refreshNotification(c: Context, a: List<Alarm>, g: List<AlarmGroup>) {
         NextAlarmNotifier.update(c, a, g)
@@ -25,23 +25,24 @@ object AlarmScheduler {
             cancel(c, al.id)
             if (al.enabled && (ge[al.groupId] ?: true)) {
                 val t = al.nextTriggerAtMillis(Calendar.getInstance())
-                if (t != null) setAlarm(c, al.id, t)
+                if (t != null) setAlarm(c, al.id, t, REQ + al.id.toInt())
             }
         }
         NextAlarmNotifier.update(c, alarms, groups)
     }
 
-    fun schedule(c: Context, alarm: Alarm, at: Long) = setAlarm(c, alarm.id, at)
+    fun schedule(c: Context, alarm: Alarm, at: Long) = setAlarm(c, alarm.id, at, REQ + alarm.id.toInt())
 
     fun scheduleSnooze(c: Context, alarmId: Long, minutes: Int) {
         val at = System.currentTimeMillis() + minutes.coerceAtLeast(1) * 60000L
         SnoozeStore.set(c, alarmId, at)
-        setAlarm(c, alarmId, at, snooze = true)
+        val code = SNOOZE + (alarmId % 100000L).toInt() * 1000 + ((at / 60000L) % 1000L).toInt()
+        setAlarm(c, alarmId, at, code)
     }
 
-    private fun setAlarm(c: Context, id: Long, at: Long, snooze: Boolean = false) {
+    private fun setAlarm(c: Context, id: Long, at: Long, requestCode: Int) {
         val m = c.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val p = pi(c, id, if (snooze) SNOOZE else REQ)
+        val p = pi(c, id, requestCode)
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !m.canScheduleExactAlarms())
                 m.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, p)
@@ -54,7 +55,7 @@ object AlarmScheduler {
     }
 
     fun cancel(c: Context, id: Long) {
-        (c.getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(pi(c, id))
+        (c.getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(pi(c, id, REQ + id.toInt()))
     }
 
     private fun flags(): Int {
@@ -63,12 +64,12 @@ object AlarmScheduler {
         return f
     }
 
-    private fun pi(c: Context, id: Long, base: Int = REQ): PendingIntent {
+    private fun pi(c: Context, id: Long, requestCode: Int): PendingIntent {
         val i = Intent(c, AlarmReceiver::class.java).apply {
             action = AlarmReceiver.ACTION_RING
             putExtra(AlarmReceiver.EXTRA_ALARM_ID, id)
         }
-        return PendingIntent.getBroadcast(c, base + id.toInt(), i, flags())
+        return PendingIntent.getBroadcast(c, requestCode, i, flags())
     }
 
     private fun show(c: Context, id: Long): PendingIntent {
