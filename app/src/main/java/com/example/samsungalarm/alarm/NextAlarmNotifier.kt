@@ -56,7 +56,6 @@ object NextAlarmNotifier {
                 description = "显示下一个即将响铃的闹钟"
                 setShowBadge(false)
             }
-            nm.deleteNotificationChannel(CHANNEL_ID)
             nm.createNotificationChannel(ch)
         }
 

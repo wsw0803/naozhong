@@ -34,21 +34,15 @@ jobs:
       - name: Rename APK
         run: |
           mkdir -p out
-          cp app/build/outputs/apk/debug/app-debug.apk "out/闹钟-v1.1.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "out/闹钟-v1.2.apk"
           ls -l out
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: 闹钟-v1.1
-          path: out/闹钟-v1.1.apk
 
       - name: Publish APK to Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.1
-          name: 闹钟 v1.1
-          files: out/闹钟-v1.1.apk
+          tag_name: v1.2
+          name: 闹钟 v1.2
+          files: out/闹钟-v1.2.apk
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
