@@ -68,3 +68,12 @@ jobs:
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Commit APK to repo
+        run: |
+          mkdir -p out_apk
+          cp out/naozhong-v${{ steps.ver.outputs.version }}.apk out_apk/naozhong.apk
+          git config user.name github-actions
+          git config user.email github-actions@users.noreply.github.com
+          git add out_apk/naozhong.apk
+          git commit -m "update-apk [skip ci]" || true
+          git push || true
