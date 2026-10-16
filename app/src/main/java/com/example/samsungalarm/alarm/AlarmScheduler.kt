@@ -13,6 +13,7 @@ import java.util.Calendar
 object AlarmScheduler {
     private const val REQ = 10000
     private const val SHOW = 30000
+    private const val SNOOZE = 20000
 
     fun refreshNotification(c: Context, a: List<Alarm>, g: List<AlarmGroup>) {
         NextAlarmNotifier.update(c, a, g)
@@ -33,12 +34,12 @@ object AlarmScheduler {
     fun schedule(c: Context, alarm: Alarm, at: Long) = setAlarm(c, alarm.id, at)
 
     fun scheduleSnooze(c: Context, alarmId: Long, minutes: Int) {
-        setAlarm(c, alarmId, System.currentTimeMillis() + minutes.coerceAtLeast(1) * 60000L)
+        setAlarm(c, alarmId, System.currentTimeMillis() + minutes.coerceAtLeast(1) * 60000L, snooze = true)
     }
 
-    private fun setAlarm(c: Context, id: Long, at: Long) {
+    private fun setAlarm(c: Context, id: Long, at: Long, snooze: Boolean = false) {
         val m = c.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val p = pi(c, id)
+        val p = pi(c, id, if (snooze) SNOOZE else REQ)
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !m.canScheduleExactAlarms())
                 m.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, p)
@@ -60,12 +61,12 @@ object AlarmScheduler {
         return f
     }
 
-    private fun pi(c: Context, id: Long): PendingIntent {
+    private fun pi(c: Context, id: Long, base: Int = REQ): PendingIntent {
         val i = Intent(c, AlarmReceiver::class.java).apply {
             action = AlarmReceiver.ACTION_RING
             putExtra(AlarmReceiver.EXTRA_ALARM_ID, id)
         }
-        return PendingIntent.getBroadcast(c, REQ + id.toInt(), i, flags())
+        return PendingIntent.getBroadcast(c, base + id.toInt(), i, flags())
     }
 
     private fun show(c: Context, id: Long): PendingIntent {
