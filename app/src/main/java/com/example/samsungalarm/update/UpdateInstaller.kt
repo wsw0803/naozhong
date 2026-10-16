@@ -3,6 +3,8 @@ package com.example.samsungalarm.update
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import androidx.core.content.FileProvider
@@ -18,6 +20,7 @@ import java.util.concurrent.atomic.AtomicLong
 object UpdateInstaller {
 
     private const val THREADS = 4
+    private const val FILE_NAME = "naozhong-latest.apk"
 
     private val MIRRORS = listOf(
         "https://ghproxy.net/",
@@ -43,19 +46,34 @@ object UpdateInstaller {
     }
 
     private fun downloadBest(context: Context, url: String, onProgress: ((Int) -> Unit)?): File {
-        val dir = File(context.cacheDir, "update").apply { mkdirs() }
-        val out = File(dir, "update.apk")
+        val out = targetFile(context)
+        if (isApkValid(context, out)) return out
         var lastErr: Exception? = null
         for (cand in candidates(url)) {
             try {
                 if (out.exists()) out.delete()
                 val ok = multiThread(cand, out, onProgress)
-                if (ok && out.length() > 0) return out
+                if (ok && isApkValid(context, out)) return out
             } catch (e: Exception) {
                 lastErr = e
             }
         }
         throw lastErr ?: IllegalStateException("download failed")
+    }
+    private fun targetFile(context: Context): File {
+        val pub = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        if (pub != null && Build.VERSION.SDK_INT < 29) {
+            try { pub.mkdirs() } catch (_: Exception) {}
+            if (pub.canWrite()) return File(pub, FILE_NAME)
+        }
+        val ext = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: File(context.filesDir, "downloads")
+        ext.mkdirs()
+        return File(ext, FILE_NAME)
+    }
+
+    private fun isApkValid(context: Context, f: File): Boolean {
+        if (!f.exists() || f.length() < 10240L) return false
+        return try { context.packageManager.getPackageArchiveInfo(f.absolutePath, 0) != null } catch (e: Exception) { false }
     }
 
     private fun open(url: String): HttpURLConnection {
