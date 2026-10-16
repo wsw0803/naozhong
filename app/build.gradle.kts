@@ -13,13 +13,15 @@ android {
         applicationId = "com.example.samsungalarm"
         minSdk = 26
         targetSdk = 34
-        versionCode = 4
-        versionName = "1.5"
+        versionCode = 6
+        versionName = "1.6"
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            // 用 debug 签名，方便直接安装 Release 版
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
