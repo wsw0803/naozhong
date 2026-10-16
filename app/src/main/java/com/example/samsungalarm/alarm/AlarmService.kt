@@ -102,6 +102,7 @@ class AlarmService : Service() {
 
         acquireWakeLock()
         showForegroundNotification(label)
+        launchFullScreen(label)
         playSound(tone)
         if (vibrate) startVibration()
     }
@@ -147,7 +148,7 @@ class AlarmService : Service() {
         }
         val stopPi = PendingIntent.getService(this, 1, stopIntent, flags)
 
-        val openIntent = Intent(this, MainActivity::class.java)
+        val openIntent = Intent(this, AlarmRingActivity::class.java)
         val openPi = PendingIntent.getActivity(this, 2, openIntent, flags)
 
         val noti = NotificationCompat.Builder(this, CHANNEL_ID)
@@ -159,10 +160,21 @@ class AlarmService : Service() {
             .setOngoing(true)
             .setAutoCancel(false)
             .setContentIntent(openPi)
+            .setFullScreenIntent(openPi, true)
             .addAction(0, "停止", stopPi)
             .build()
 
         startForeground(NOTI_ID, noti)
+    }
+
+    private fun launchFullScreen(label: String) {
+        try {
+            val i = Intent(this, AlarmRingActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                putExtra(AlarmRingActivity.EXTRA_LABEL, label)
+            }
+            startActivity(i)
+        } catch (_: Exception) { }
     }
 
     private fun playSound(tone: String?) {
