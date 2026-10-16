@@ -262,8 +262,8 @@ private fun GroupDetailScreen(
             bottomBar = {
                 if (selectionMode) {
                     BottomAppBar(containerColor = Color.Transparent) {
-                        TextButton(onClick = { entry.alarms.filter { selectedIds.contains(it.id) }.forEach { vm.toggleAlarm(it, true) } }) { Text("开启", color = textPrimary()) }
-                        TextButton(onClick = { entry.alarms.filter { selectedIds.contains(it.id) }.forEach { vm.toggleAlarm(it, false) } }) { Text("关闭", color = textPrimary()) }
+                        TextButton(onClick = { entry.alarms.filter { selectedIds.contains(it.id) }.forEach { vm.toggleAlarm(it, true) }; selectionMode = false; selectedIds = emptySet() }) { Text("开启", color = textPrimary()) }
+                        TextButton(onClick = { entry.alarms.filter { selectedIds.contains(it.id) }.forEach { vm.toggleAlarm(it, false) }; selectionMode = false; selectedIds = emptySet() }) { Text("关闭", color = textPrimary()) }
                         TextButton(onClick = { vm.deleteAlarms(entry.alarms.filter { selectedIds.contains(it.id) }); selectionMode = false; selectedIds = emptySet() }) { Text("删除", color = Color(0xFFE0533D)) }
                     }
                 }

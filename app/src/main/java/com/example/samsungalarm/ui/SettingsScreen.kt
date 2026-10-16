@@ -239,7 +239,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 GlassPanel {
                     Text("关于", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textPrimary())
                     Spacer(Modifier.height(2.dp))
-                    Text("闹钟 · 开源项目", fontSize = 11.sp, color = textSecondary())
+                    Text("闹钟 · 开源项目 · v1.2", fontSize = 11.sp, color = textSecondary())
                     Spacer(Modifier.height(10.dp))
                     Row(
                         modifier = Modifier
