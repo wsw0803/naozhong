@@ -7,7 +7,6 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
-import android.app.Notification
 import com.example.samsungalarm.MainActivity
 import com.example.samsungalarm.data.Alarm
 import com.example.samsungalarm.data.AlarmGroup
@@ -16,7 +15,8 @@ import java.util.Calendar
 
 /**
  * 常驻通知：显示下一个即将响铃的闹钟。
- * 无待响闹钟时自动移除。
+ * 规则：在所有「已开启且所属分组已开启」的闹钟里，严格按绝对触发时间取最近的一个，
+ * 与谁先开启、列表顺序无关；没有任何待响闹钟时移除通知。
  */
 object NextAlarmNotifier {
 
@@ -34,15 +34,18 @@ object NextAlarmNotifier {
             val active = a.enabled && (groupEnabled[a.groupId] ?: true)
             if (active) {
                 val t = a.nextTriggerAtMillis(now)
-                if (t != null && t < bestTime) {
-                    bestTime = t
-                    bestAlarm = a
+                if (t != null) {
+                    if (t < bestTime || (t == bestTime && bestAlarm != null && a.id < bestAlarm!!.id)) {
+                        bestTime = t
+                        bestAlarm = a
+                    }
                 }
             }
         }
 
         val alarm = bestAlarm
         if (alarm == null) {
+            // 没有待响闹钟（含已过期的一次性闹钟），移除常驻通知
             nm.cancel(NOTI_ID)
             return
         }
@@ -71,7 +74,11 @@ object NextAlarmNotifier {
         val tomorrowCal = (nowCal.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 1) }
         val isTomorrow = cal.get(Calendar.YEAR) == tomorrowCal.get(Calendar.YEAR) &&
                 cal.get(Calendar.DAY_OF_YEAR) == tomorrowCal.get(Calendar.DAY_OF_YEAR)
-        val dayPrefix = when { sameDay -> "今天 "; isTomorrow -> "明天 "; else -> "" }
+        val dayPrefix = when {
+            sameDay -> "今天 "
+            isTomorrow -> "明天 "
+            else -> ""
+        }
         val text = dayPrefix + timeText + (if (alarm.label.isBlank()) "" else " · " + alarm.label)
 
         var flags = PendingIntent.FLAG_UPDATE_CURRENT

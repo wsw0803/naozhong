@@ -17,13 +17,18 @@ import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.Vibrator
 import androidx.core.app.NotificationCompat
+import com.example.samsungalarm.AlarmApp
 import com.example.samsungalarm.MainActivity
 import com.example.samsungalarm.R
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * 闹钟响铃前台服务。
  * 用 MediaPlayer 循环播放铃声，配合持续振动，直到用户点停止。
  * 走 USAGE_ALARM 音频流，所以静音模式下依然会响。
+ * 停止后刷新常驻「下一个闹钟」通知，保证过期闹钟及时消失。
  */
 class AlarmService : Service() {
 
@@ -239,6 +244,20 @@ class AlarmService : Service() {
 
         stopForeground(true)
         stopSelf()
+
+        // 停止后刷新常驻通知：一次性闹钟已经响过，不该继续占位
+        refreshNextAlarmNotification()
+    }
+
+    private fun refreshNextAlarmNotification() {
+        val app = applicationContext as? AlarmApp ?: return
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val alarms = app.repository.allAlarms()
+                val groups = app.repository.allGroups()
+                NextAlarmNotifier.update(applicationContext, alarms, groups)
+            } catch (_: Exception) { }
+        }
     }
 
     override fun onDestroy() {

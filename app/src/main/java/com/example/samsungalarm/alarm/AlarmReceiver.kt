@@ -13,6 +13,7 @@ import java.util.Calendar
 /**
  * 闹钟到点时被系统唤醒。
  * 这里只负责查数据、拉起响铃服务、安排下一次，真正的出声在 AlarmService 里。
+ * 响铃后立即刷新常驻通知，让已过期的一次性闹钟不再占位。
  */
 class AlarmReceiver : BroadcastReceiver() {
 
@@ -35,7 +36,11 @@ class AlarmReceiver : BroadcastReceiver() {
                 val groupEnabled =
                     groups.firstOrNull { it.id == alarm.groupId }?.enabled ?: true
 
-                if (!alarm.enabled || !groupEnabled) return@launch
+                if (!alarm.enabled || !groupEnabled) {
+                    // 关掉的一瞬间到点了，也要把通知刷新掉
+                    NextAlarmNotifier.update(context, app.repository.allAlarms(), groups)
+                    return@launch
+                }
 
                 // 拉起前台服务，循环播放铃声直到用户停止
                 AlarmService.start(
@@ -53,6 +58,9 @@ class AlarmReceiver : BroadcastReceiver() {
                         AlarmScheduler.schedule(context, alarm, next)
                     }
                 }
+
+                // 响铃后刷新常驻通知：一次性闹钟此刻已过期，不再占位
+                NextAlarmNotifier.update(context, app.repository.allAlarms(), groups)
             } finally {
                 pending.finish()
             }

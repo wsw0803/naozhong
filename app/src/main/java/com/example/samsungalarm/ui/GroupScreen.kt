@@ -2,10 +2,9 @@ package com.example.samsungalarm.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,6 +30,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -46,16 +46,17 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -69,6 +70,7 @@ import com.example.samsungalarm.ui.theme.glassShadow
 import com.example.samsungalarm.ui.theme.isDark
 import com.example.samsungalarm.ui.theme.textPrimary
 import com.example.samsungalarm.ui.theme.textSecondary
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,6 +81,16 @@ fun GroupScreen(
     val groups by vm.grouped.collectAsStateWithLifecycle()
     var showAddGroup by remember { mutableStateOf(false) }
     var openedGroupId by remember { mutableStateOf<Long?>(null) }
+    var selectionMode by remember { mutableStateOf(false) }
+    var selectedIds by remember { mutableStateOf(setOf<Long>()) }
+    var applying by remember { mutableStateOf(false) }
+
+    LaunchedEffect(applying) {
+        if (applying) {
+            delay(650)
+            applying = false
+        }
+    }
 
     val opened = groups.firstOrNull { it.group.id == openedGroupId }
     if (opened != null) {
@@ -95,22 +107,56 @@ fun GroupScreen(
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
-                TopAppBar(
-                    title = { Text("闹钟分组", fontWeight = FontWeight.Bold, color = textPrimary()) },
-                    actions = {
-                        IconButton(onClick = onOpenSettings) {
-                            Icon(Icons.Default.Palette, contentDescription = "外观设置", tint = textPrimary())
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
-                )
+                if (selectionMode) {
+                    TopAppBar(
+                        title = { Text("已选 " + selectedIds.size, color = textPrimary()) },
+                        navigationIcon = {
+                            IconButton(onClick = { selectionMode = false; selectedIds = emptySet() }) {
+                                Icon(Icons.Default.Close, contentDescription = "退出", tint = textPrimary())
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                    )
+                } else {
+                    TopAppBar(
+                        title = { Text("闹钟分组", fontWeight = FontWeight.Bold, color = textPrimary()) },
+                        actions = {
+                            IconButton(onClick = onOpenSettings) {
+                                Icon(Icons.Default.Palette, contentDescription = "外观设置", tint = textPrimary())
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                    )
+                }
+            },
+            bottomBar = {
+                if (selectionMode) {
+                    BottomAppBar(containerColor = Color.Transparent) {
+                        TextButton(onClick = {
+                            applying = true
+                            val picked = groups.filter { selectedIds.contains(it.group.id) }
+                            picked.forEach { vm.toggleGroup(it.group, true) }
+                            selectionMode = false
+                            selectedIds = emptySet()
+                        }) { Text("开启", color = textPrimary()) }
+                        TextButton(onClick = {
+                            applying = true
+                            val picked = groups.filter { selectedIds.contains(it.group.id) }
+                            picked.forEach { vm.toggleGroup(it.group, false) }
+                            selectionMode = false
+                            selectedIds = emptySet()
+                        }) { Text("关闭", color = textPrimary()) }
+                    }
+                }
             },
             floatingActionButton = {
-                FloatingActionButton(
-                    onClick = { showAddGroup = true },
-                    containerColor = GlassPrimary,
-                    contentColor = Color.White
-                ) { Icon(Icons.Default.Add, contentDescription = "新建分组") }
+                if (!selectionMode) {
+                    FloatingActionButton(
+                        onClick = { showAddGroup = true },
+                        containerColor = GlassPrimary,
+                        contentColor = Color.White
+                    ) { Icon(Icons.Default.Add, contentDescription = "新建分组") }
+                }
             }
         ) { inner ->
             LazyColumn(
@@ -124,14 +170,31 @@ fun GroupScreen(
                 items(groups, key = { it.group.id }) { entry ->
                     GroupCard(
                         entry = entry,
-                        onOpen = { openedGroupId = entry.group.id },
+                        selectionMode = selectionMode,
+                        selected = selectedIds.contains(entry.group.id),
+                        onOpen = {
+                            if (selectionMode) {
+                                selectedIds = if (selectedIds.contains(entry.group.id)) selectedIds - entry.group.id else selectedIds + entry.group.id
+                            } else {
+                                openedGroupId = entry.group.id
+                            }
+                        },
                         onToggleGroup = { on -> vm.toggleGroup(entry.group, on) },
                         onRename = { name -> vm.renameGroup(entry.group, name) },
-                        onDeleteGroup = { vm.deleteGroup(entry.group) }
+                        onDeleteGroup = { vm.deleteGroup(entry.group) },
+                        onLongPress = {
+                            if (!selectionMode) {
+                                selectionMode = true
+                                selectedIds = selectedIds + entry.group.id
+                            }
+                        }
                     )
                 }
                 item { Spacer(Modifier.height(80.dp)) }
             }
+        }
+        if (applying) {
+            ApplyingOverlay()
         }
     }
 
@@ -145,13 +208,17 @@ fun GroupScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun GroupCard(
     entry: GroupWithAlarms,
+    selectionMode: Boolean,
+    selected: Boolean,
     onOpen: () -> Unit,
     onToggleGroup: (Boolean) -> Unit,
     onRename: (String) -> Unit,
-    onDeleteGroup: () -> Unit
+    onDeleteGroup: () -> Unit,
+    onLongPress: () -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
@@ -163,12 +230,24 @@ private fun GroupCard(
             .fillMaxWidth()
             .shadow(12.dp, shape, clip = false, ambientColor = glassShadow(), spotColor = glassShadow())
             .clip(shape)
-            .background(glassFill())
+            .background(if (selected) GlassPrimary.copy(alpha = 0.15f) else glassFill())
             .border(BorderStroke(1.dp, glassBorder()), shape)
-            .clickable(onClick = onOpen)
+            .pointerInput(selectionMode) {
+                detectTapGestures(
+                    onTap = { onOpen() },
+                    onLongPress = { onLongPress() }
+                )
+            }
             .padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            if (selectionMode) {
+                Checkbox(
+                    checked = selected,
+                    onCheckedChange = { onOpen() },
+                    colors = CheckboxDefaults.colors(checkedColor = GlassPrimary)
+                )
+            }
             Column(Modifier.weight(1f)) {
                 Text(entry.group.name, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = textPrimary())
                 Text(
@@ -177,21 +256,29 @@ private fun GroupCard(
                     color = textSecondary()
                 )
             }
-            Box {
-                IconButton(onClick = { menu = true }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "更多", tint = textSecondary())
+            if (!selectionMode) {
+                Box {
+                    IconButton(onClick = { menu = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "更多", tint = textSecondary())
+                    }
+                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        DropdownMenuItem(text = { Text("进入分组") }, onClick = { menu = false; onOpen() })
+                        DropdownMenuItem(text = { Text("重命名分组") }, onClick = { menu = false; renaming = true })
+                        DropdownMenuItem(text = { Text("删除分组") }, onClick = { menu = false; onDeleteGroup() })
+                    }
                 }
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(text = { Text("进入分组") }, onClick = { menu = false; onOpen() })
-                    DropdownMenuItem(text = { Text("重命名分组") }, onClick = { menu = false; renaming = true })
-                    DropdownMenuItem(text = { Text("删除分组") }, onClick = { menu = false; onDeleteGroup() })
-                }
+                Switch(
+                    checked = entry.group.enabled,
+                    onCheckedChange = onToggleGroup,
+                    colors = SwitchDefaults.colors(checkedTrackColor = GlassPrimary)
+                )
+            } else {
+                Text(
+                    if (entry.group.enabled) "已开启" else "已关闭",
+                    fontSize = 12.sp,
+                    color = if (entry.group.enabled) GlassPrimary else textSecondary()
+                )
             }
-            Switch(
-                checked = entry.group.enabled,
-                onCheckedChange = onToggleGroup,
-                colors = SwitchDefaults.colors(checkedTrackColor = GlassPrimary)
-            )
         }
     }
 
@@ -202,6 +289,28 @@ private fun GroupCard(
             onDismiss = { renaming = false },
             onConfirm = { name -> onRename(name); renaming = false }
         )
+    }
+}
+
+@Composable
+private fun ApplyingOverlay() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.28f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .clip(RoundedCornerShape(18.dp))
+                .background(if (isDark()) Color(0xFF232733) else Color(0xFFFFFFFF))
+                .padding(horizontal = 26.dp, vertical = 20.dp)
+        ) {
+            CircularProgressIndicator(color = GlassPrimary, strokeWidth = 3.dp)
+            Spacer(Modifier.height(12.dp))
+            Text("正在应用…", fontSize = 13.sp, color = textPrimary())
+        }
     }
 }
 
@@ -218,6 +327,14 @@ private fun GroupDetailScreen(
     var selectedIds by remember { mutableStateOf(setOf<Long>()) }
     var menu by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
+    var applying by remember { mutableStateOf(false) }
+
+    LaunchedEffect(applying) {
+        if (applying) {
+            delay(650)
+            applying = false
+        }
+    }
 
     Box(Modifier.fillMaxSize()) {
         AppBackground()
@@ -262,18 +379,36 @@ private fun GroupDetailScreen(
             bottomBar = {
                 if (selectionMode) {
                     BottomAppBar(containerColor = Color.Transparent) {
-                        TextButton(onClick = { entry.alarms.filter { selectedIds.contains(it.id) }.forEach { vm.toggleAlarm(it, true) }; selectionMode = false; selectedIds = emptySet() }) { Text("开启", color = textPrimary()) }
-                        TextButton(onClick = { entry.alarms.filter { selectedIds.contains(it.id) }.forEach { vm.toggleAlarm(it, false) }; selectionMode = false; selectedIds = emptySet() }) { Text("关闭", color = textPrimary()) }
-                        TextButton(onClick = { vm.deleteAlarms(entry.alarms.filter { selectedIds.contains(it.id) }); selectionMode = false; selectedIds = emptySet() }) { Text("删除", color = Color(0xFFE0533D)) }
+                        TextButton(onClick = {
+                            applying = true
+                            val picked = entry.alarms.filter { selectedIds.contains(it.id) }
+                            picked.forEach { vm.toggleAlarm(it, true) }
+                            selectionMode = false
+                            selectedIds = emptySet()
+                        }) { Text("开启", color = textPrimary()) }
+                        TextButton(onClick = {
+                            applying = true
+                            val picked = entry.alarms.filter { selectedIds.contains(it.id) }
+                            picked.forEach { vm.toggleAlarm(it, false) }
+                            selectionMode = false
+                            selectedIds = emptySet()
+                        }) { Text("关闭", color = textPrimary()) }
+                        TextButton(onClick = {
+                            vm.deleteAlarms(entry.alarms.filter { selectedIds.contains(it.id) })
+                            selectionMode = false
+                            selectedIds = emptySet()
+                        }) { Text("删除", color = Color(0xFFE0533D)) }
                     }
                 }
             },
             floatingActionButton = {
-                FloatingActionButton(
-                    onClick = { creating = true },
-                    containerColor = GlassPrimary,
-                    contentColor = Color.White
-                ) { Icon(Icons.Default.Add, contentDescription = "添加闹钟") }
+                if (!selectionMode) {
+                    FloatingActionButton(
+                        onClick = { creating = true },
+                        containerColor = GlassPrimary,
+                        contentColor = Color.White
+                    ) { Icon(Icons.Default.Add, contentDescription = "添加闹钟") }
+                }
             }
         ) { inner ->
             LazyColumn(
@@ -317,6 +452,9 @@ private fun GroupDetailScreen(
                 item { Spacer(Modifier.height(80.dp)) }
             }
         }
+        if (applying) {
+            ApplyingOverlay()
+        }
     }
 
     if (creating) {
@@ -345,6 +483,7 @@ private fun GroupDetailScreen(
         )
     }
 }
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun GlassAlarmRow(
@@ -368,7 +507,12 @@ private fun GlassAlarmRow(
             .clip(shape)
             .background(if (selected) GlassPrimary.copy(alpha = 0.15f) else glassFill())
             .border(BorderStroke(1.dp, glassBorder()), shape)
-            .pointerInput(selectionMode) { detectTapGestures(onTap = { if (selectionMode) onSelectToggle() else onEdit() }, onLongPress = { onLongPress() }) }
+            .pointerInput(selectionMode) {
+                detectTapGestures(
+                    onTap = { if (selectionMode) onSelectToggle() else onEdit() },
+                    onLongPress = { onLongPress() }
+                )
+            }
             .padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
         if (selectionMode) {
@@ -385,7 +529,11 @@ private fun GlassAlarmRow(
                 fontWeight = FontWeight.Medium,
                 color = if (active) textPrimary() else textSecondary()
             )
-            Text(buildSubtitle(alarm) + (if (selectionMode) (if (alarm.enabled) " · 已开启" else " · 已关闭") else ""), fontSize = 11.sp, color = textSecondary())
+            Text(
+                buildSubtitle(alarm) + (if (selectionMode) (if (alarm.enabled) " · 已开启" else " · 已关闭") else ""),
+                fontSize = 11.sp,
+                color = textSecondary()
+            )
         }
         if (!selectionMode) {
             IconButton(onClick = onDuplicate, modifier = Modifier.size(34.dp)) {
