@@ -2,6 +2,7 @@ package com.example.samsungalarm.ui
 
 import android.app.AlarmManager
 import android.app.NotificationManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -55,6 +56,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.example.samsungalarm.alarm.AlarmService
+import com.example.samsungalarm.BuildConfig
+import com.example.samsungalarm.update.UpdateChecker
+import com.example.samsungalarm.update.UpdateInfo
 import com.example.samsungalarm.ui.theme.AppBackground
 import com.example.samsungalarm.ui.theme.GlassPrimary
 import com.example.samsungalarm.ui.theme.glassBorder
@@ -92,12 +96,20 @@ fun SettingsScreen(onBack: () -> Unit) {
     var exactOk by remember { mutableStateOf(false) }
     var overlayOk by remember { mutableStateOf(false) }
     var batteryOk by remember { mutableStateOf(false) }
+    var autoStartOk by remember { mutableStateOf(false) }
+    var bgPopupOk by remember { mutableStateOf(false) }
+
+    var checking by remember { mutableStateOf(false) }
+    var updateMsg by remember { mutableStateOf<String?>(null) }
+    var newVersion by remember { mutableStateOf<UpdateInfo?>(null) }
 
     fun refreshPerms() {
         notifOk = PermissionUtils.hasNotification(ctx)
         exactOk = PermissionUtils.canExactAlarm(ctx)
         overlayOk = PermissionUtils.canDrawOverlay(ctx)
         batteryOk = PermissionUtils.ignoringBattery(ctx)
+        autoStartOk = PermissionUtils.isAcknowledged(ctx, PermissionUtils.ACK_AUTO_START)
+        bgPopupOk = PermissionUtils.isAcknowledged(ctx, PermissionUtils.ACK_BG_POPUP)
     }
 
     // 每次回到前台（含从系统设置授权返回）都刷新一次权限状态
@@ -160,7 +172,16 @@ fun SettingsScreen(onBack: () -> Unit) {
                     PermRow("悬浮窗", overlayOk) { PermissionUtils.openOverlaySettings(ctx) }
                     PermRow("后台运行（电池优化白名单）", batteryOk) { PermissionUtils.openBatterySettings(ctx) }
                     PermRow("通知渠道（响铃/静音）", PermissionUtils.ringingChannelEnabled(ctx)) { PermissionUtils.openChannelSettings(ctx) }
-                    PermRow("后台弹出界面（部分国产 ROM）", null) { PermissionUtils.openAppDetailSettings(ctx) }
+                    PermRow("自启动 / 关联启动", autoStartOk) {
+                        PermissionUtils.openAutoStartSettings(ctx)
+                        PermissionUtils.acknowledge(ctx, PermissionUtils.ACK_AUTO_START)
+                        refreshPerms()
+                    }
+                    PermRow("后台弹出界面（部分国产 ROM）", bgPopupOk) {
+                        PermissionUtils.openAppDetailSettings(ctx)
+                        PermissionUtils.acknowledge(ctx, PermissionUtils.ACK_BG_POPUP)
+                        refreshPerms()
+                    }
 
                     Spacer(Modifier.height(6.dp))
                     TextButton(onClick = { refreshPerms() }) {
@@ -238,8 +259,67 @@ fun SettingsScreen(onBack: () -> Unit) {
                 GlassPanel {
                     Text("关于", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textPrimary())
                     Spacer(Modifier.height(2.dp))
-                    Text("闹钟 · 开源项目 · v1.2", fontSize = 11.sp, color = textSecondary())
+                    Text("闹钟 · 开源项目 · v" + BuildConfig.VERSION_NAME, fontSize = 11.sp, color = textSecondary())
                     Spacer(Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable {
+                                if (checking) return@clickable
+                                checking = true
+                                updateMsg = null
+                                newVersion = null
+                                UpdateChecker.check(BuildConfig.VERSION_NAME) { res ->
+                                    checking = false
+                                    res.onSuccess { info ->
+                                        if (info == null) {
+                                            updateMsg = "已是最新版本"
+                                        } else {
+                                            newVersion = info
+                                            updateMsg = "发现新版本 " + info.latestVersion
+                                        }
+                                    }.onFailure { e ->
+                                        updateMsg = "检查失败：" + (e.message ?: "网络错误")
+                                    }
+                                }
+                            }
+                            .padding(vertical = 9.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("检查更新", fontSize = 13.sp, color = textPrimary(), modifier = Modifier.weight(1f))
+                        Text(
+                            if (checking) "检查中…" else (updateMsg ?: "点击检查"),
+                            fontSize = 13.sp,
+                            color = if (newVersion != null) Color(0xFFE0533D) else GlassPrimary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    val latest = newVersion
+                    if (latest != null) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            "最新 " + latest.releaseName + "（当前 v" + BuildConfig.VERSION_NAME + "）",
+                            fontSize = 11.sp, color = textSecondary()
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { openUrl(ctx, latest.apkUrl ?: latest.releaseUrl) }
+                                .padding(vertical = 9.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                if (latest.apkUrl != null) "下载新版 APK" else "前往 Release 页面",
+                                fontSize = 13.sp, color = textPrimary(), modifier = Modifier.weight(1f)
+                            )
+                            Text("下载 →", fontSize = 13.sp, color = GlassPrimary, fontWeight = FontWeight.Medium)
+                        }
+                    }
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -401,6 +481,48 @@ object PermissionUtils {
         val i = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
             .setData(Uri.parse("package:${ctx.packageName}"))
         safeStart(ctx, i)
+    }
+
+    const val ACK_AUTO_START = "auto_start_ack"
+    const val ACK_BG_POPUP = "bg_popup_ack"
+
+    private fun prefs(ctx: Context) =
+        ctx.getSharedPreferences("permission_ack", Context.MODE_PRIVATE)
+
+    /** 国产 ROM 的自启动开关没有公开 API，只能记录用户是否已前往设置过。 */
+    fun isAcknowledged(ctx: Context, key: String): Boolean =
+        prefs(ctx).getBoolean(key, false)
+
+    fun acknowledge(ctx: Context, key: String) {
+        prefs(ctx).edit().putBoolean(key, true).apply()
+    }
+
+    /** 自启动设置页：不同厂商的组件名各不相同，逐个尝试，失败则退回应用详情页。 */
+    fun openAutoStartSettings(ctx: Context) {
+        val candidates = listOf(
+            "com.miui.securitycenter" to "com.miui.permcenter.autostart.AutoStartManagementActivity",
+            "com.huawei.systemmanager" to "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity",
+            "com.huawei.systemmanager" to "com.huawei.systemmanager.appcontrol.activity.StartupAppControlActivity",
+            "com.coloros.safecenter" to "com.coloros.safecenter.permission.startup.StartupAppListActivity",
+            "com.coloros.safecenter" to "com.coloros.safecenter.startupapp.StartupAppListActivity",
+            "com.oppo.safe" to "com.oppo.safe.permission.startup.StartupAppListActivity",
+            "com.vivo.permissionmanager" to "com.vivo.permissionmanager.activity.BgStartUpManagerActivity",
+            "com.iqoo.secure" to "com.iqoo.secure.ui.phoneoptimize.AddWhiteListActivity",
+            "com.samsung.android.lool" to "com.samsung.android.sm.ui.battery.BatteryActivity",
+            "com.letv.android.letvsafe" to "com.letv.android.letvsafe.AutobootManageActivity"
+        )
+        for ((pkg, cls) in candidates) {
+            val i = Intent().apply {
+                component = ComponentName(pkg, cls)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            try {
+                ctx.startActivity(i)
+                return
+            } catch (_: Exception) {
+            }
+        }
+        openAppDetailSettings(ctx)
     }
 
     private fun safeStart(ctx: Context, intent: Intent) {

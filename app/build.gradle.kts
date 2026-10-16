@@ -13,8 +13,8 @@ android {
         applicationId = "com.example.samsungalarm"
         minSdk = 26
         targetSdk = 34
-        versionCode = 8
-        versionName = "1.8"
+        versionCode = 10
+        versionName = "2.0"
     }
 
     buildTypes {
@@ -34,6 +34,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {
