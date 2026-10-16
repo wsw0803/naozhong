@@ -36,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +66,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class AlarmRingActivity : ComponentActivity() {
 
@@ -181,24 +184,41 @@ private fun RingScreen(
                 )
             }
             Spacer(Modifier.height(24.dp))
-            SlideToStop(onStop = onStop)
+            SlideToAction(text = "滑动停止  →", forward = true, accent = GlassPrimary, onDone = onStop)
             Spacer(Modifier.height(14.dp))
-            SlideToSnooze(minutes = snoozeMinutes, onSnooze = onSnooze)
+            SlideToAction(text = "←  滑动延迟 " + snoozeMinutes + " 分钟", forward = false, accent = GlassPrimary, onDone = onSnooze)
         }
     }
 }
 
 @Composable
-private fun SlideToStop(onStop: () -> Unit) {
+private fun SlideToAction(
+    text: String,
+    forward: Boolean,
+    accent: androidx.compose.ui.graphics.Color,
+    onDone: () -> Unit
+) {
     val trackHeight = 66.dp
     val thumb = 54.dp
-    val startPad = 6.dp
+    val pad = 6.dp
     var widthPx by remember { mutableIntStateOf(0) }
     var offsetX by remember { mutableFloatStateOf(0f) }
+    val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     val thumbPx = with(density) { thumb.toPx() }
-    val startPadPx = with(density) { startPad.toPx() }
-    val maxOffset = (widthPx - thumbPx - startPadPx * 2f).coerceAtLeast(0f)
+    val padPx = with(density) { pad.toPx() }
+    val maxOffset = (widthPx - thumbPx - padPx * 2f).coerceAtLeast(0f)
+
+    fun snapBack() {
+        scope.launch {
+            val from = offsetX
+            for (i in 1..10) {
+                offsetX = from * (1f - i / 10f)
+                kotlinx.coroutines.delay(14)
+            }
+            offsetX = 0f
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -208,23 +228,25 @@ private fun SlideToStop(onStop: () -> Unit) {
             .background(glassFill())
             .border(BorderStroke(1.dp, glassBorder()), RoundedCornerShape(trackHeight / 2))
             .onSizeChanged { widthPx = it.width }
-            .pointerInput(widthPx) {
+            .pointerInput(widthPx, forward) {
                 detectHorizontalDragGestures(
                     onDragEnd = {
-                        if (maxOffset > 0f && offsetX >= maxOffset - 4f) onStop()
-                        offsetX = 0f
+                        val reached = if (forward) offsetX >= maxOffset * 0.85f
+                                      else offsetX <= -maxOffset * 0.85f
+                        if (maxOffset > 0f && reached) onDone() else snapBack()
                     },
-                    onDragCancel = { offsetX = 0f },
-                    onHorizontalDrag = { change, dragAmount ->
+                    onDragCancel = { snapBack() },
+                    onHorizontalDrag = { change, drag ->
                         change.consume()
-                        offsetX = (offsetX + dragAmount).coerceIn(0f, maxOffset)
+                        offsetX = if (forward) (offsetX + drag).coerceIn(0f, maxOffset)
+                                  else (offsetX + drag).coerceIn(-maxOffset, 0f)
                     }
                 )
             },
-        contentAlignment = Alignment.CenterStart
+        contentAlignment = if (forward) Alignment.CenterStart else Alignment.CenterEnd
     ) {
         Text(
-            "从左滑到右停止  →",
+            text,
             fontSize = 16.sp,
             fontWeight = FontWeight.Medium,
             color = textSecondary(),
@@ -233,75 +255,17 @@ private fun SlideToStop(onStop: () -> Unit) {
         )
         Box(
             modifier = Modifier
-                .offset { IntOffset((startPadPx + offsetX).roundToInt(), 0) }
+                .offset {
+                    val base = if (forward) padPx else (widthPx - thumbPx - padPx)
+                    IntOffset((base + offsetX).roundToInt(), 0)
+                }
                 .size(thumb)
                 .clip(CircleShape)
-                .background(GlassPrimary),
+                .background(accent),
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(28.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun SlideToSnooze(minutes: Int, onSnooze: () -> Unit) {
-    val trackHeight = 66.dp
-    val thumb = 54.dp
-    val startPad = 6.dp
-    var widthPx by remember { mutableIntStateOf(0) }
-    var offsetX by remember { mutableFloatStateOf(0f) }
-    val density = LocalDensity.current
-    val thumbPx = with(density) { thumb.toPx() }
-    val startPadPx = with(density) { startPad.toPx() }
-    val maxOffset = (widthPx - thumbPx - startPadPx * 2f).coerceAtLeast(0f)
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth(0.82f)
-            .height(trackHeight)
-            .clip(RoundedCornerShape(trackHeight / 2))
-            .background(glassFill())
-            .border(BorderStroke(1.dp, glassBorder()), RoundedCornerShape(trackHeight / 2))
-            .onSizeChanged { widthPx = it.width }
-            .pointerInput(widthPx) {
-                detectHorizontalDragGestures(
-                    onDragEnd = {
-                        if (maxOffset > 0f && offsetX <= -maxOffset + 4f) onSnooze()
-                        offsetX = 0f
-                    },
-                    onDragCancel = { offsetX = 0f },
-                    onHorizontalDrag = { change, dragAmount ->
-                        change.consume()
-                        offsetX = (offsetX + dragAmount).coerceIn(-maxOffset, 0f)
-                    }
-                )
-            },
-        contentAlignment = Alignment.CenterEnd
-    ) {
-        Text(
-            "←  滑动延迟 " + minutes + " 分钟",
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium,
-            color = textSecondary(),
-            modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.Center
-        )
-        Box(
-            modifier = Modifier
-                .offset { IntOffset((widthPx - thumbPx - startPadPx + offsetX).roundToInt(), 0) }
-                .size(thumb)
-                .clip(CircleShape)
-                .background(GlassPrimary),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Icons.Default.ChevronLeft,
+                if (forward) Icons.Default.ChevronRight else Icons.Default.ChevronLeft,
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier.size(28.dp)
