@@ -42,6 +42,7 @@ class AlarmService : Service() {
         const val EXTRA_SNOOZE = "snooze"
 
         private const val NOTI_ID = 90001
+        @Volatile var keepEnabledOnStop = false
 
         const val CHANNEL_ID = "alarm_ringing"
 
@@ -68,7 +69,8 @@ class AlarmService : Service() {
             }
         }
 
-        fun stop(context: Context) {
+        fun stop(context: Context, keepEnabled: Boolean = false) {
+            keepEnabledOnStop = keepEnabled
             context.startService(
                 Intent(context, AlarmService::class.java).apply { action = ACTION_STOP }
             )
@@ -79,12 +81,16 @@ class AlarmService : Service() {
     private var vibrator: Vibrator? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var ringing = false
+    private var currentAlarmId: Long = -1L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent == null) { stopEverything(); return START_NOT_STICKY }
         when (intent?.action) {
             ACTION_STOP -> {
+                if (!keepEnabledOnStop) OneShotFinish.finish(this, currentAlarmId)
+                keepEnabledOnStop = false
                 stopEverything()
                 return START_NOT_STICKY
             }
@@ -97,12 +103,13 @@ class AlarmService : Service() {
                 startRinging(id, label, tone, vib, sn)
             }
         }
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     private fun startRinging(alarmId: Long, label: String, tone: String?, vibrate: Boolean, snooze: Int) {
         if (ringing) return
         ringing = true
+        currentAlarmId = alarmId
 
         acquireWakeLock()
         showForegroundNotification(label)

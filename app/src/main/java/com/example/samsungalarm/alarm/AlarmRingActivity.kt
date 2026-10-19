@@ -126,7 +126,7 @@ class AlarmRingActivity : ComponentActivity() {
     }
 
     private fun doSnooze(id: Long, minutes: Int) {
-        AlarmService.stop(applicationContext)
+        AlarmService.stop(applicationContext, keepEnabled = true)
         if (id >= 0) AlarmScheduler.scheduleSnooze(applicationContext, id, minutes)
         finishAndRemoveTask()
     }

@@ -122,7 +122,7 @@ object NextAlarmNotifier {
         cal.set(Calendar.MINUTE, a.minute)
         cal.set(Calendar.SECOND, 0)
         cal.set(Calendar.MILLISECOND, 0)
-        if (cal.timeInMillis <= now.timeInMillis) cal.add(Calendar.DAY_OF_YEAR, 1)
+        if (cal.timeInMillis <= now.timeInMillis) return null
         return cal.timeInMillis
     }
 
