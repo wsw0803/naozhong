@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
+import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.RingtoneManager
 import android.net.Uri
@@ -53,7 +54,7 @@ class AlarmService : Service() {
             ringtone: String?,
             vibrate: Boolean,
             snoozeMinutes: Int
-        ) {
+        ): Boolean {
             val i = Intent(context, AlarmService::class.java).apply {
                 action = ACTION_START
                 putExtra(EXTRA_ALARM_ID, alarmId)
@@ -62,10 +63,15 @@ class AlarmService : Service() {
                 putExtra(EXTRA_VIBRATE, vibrate)
                 putExtra(EXTRA_SNOOZE, snoozeMinutes)
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(i)
-            } else {
-                context.startService(i)
+            return try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(i)
+                } else {
+                    context.startService(i)
+                }
+                true
+            } catch (_: Exception) {
+                false
             }
         }
 
@@ -107,13 +113,17 @@ class AlarmService : Service() {
     }
 
     private fun startRinging(alarmId: Long, label: String, tone: String?, vibrate: Boolean, snooze: Int) {
-        if (ringing) return
+        if (ringing) {
+            releasePlayer()
+            stopVibration()
+        }
         ringing = true
         currentAlarmId = alarmId
 
         acquireWakeLock()
         showForegroundNotification(label)
         launchFullScreen(alarmId, label, snooze)
+        ensureAlarmVolume()
         playSound(tone)
         if (vibrate) startVibration()
     }
@@ -190,6 +200,17 @@ class AlarmService : Service() {
         } catch (_: Exception) { }
     }
 
+    private fun ensureAlarmVolume() {
+        try {
+            val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val max = am.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+            val cur = am.getStreamVolume(AudioManager.STREAM_ALARM)
+            val target = (max * 0.7f).toInt().coerceAtLeast(1)
+            if (cur < target) am.setStreamVolume(AudioManager.STREAM_ALARM, target, 0)
+        } catch (_: Exception) {
+        }
+    }
+
     private fun playSound(tone: String?) {
         val uri: Uri = try {
             if (tone.isNullOrBlank()) {
@@ -249,18 +270,25 @@ class AlarmService : Service() {
         } catch (_: Exception) { }
     }
 
-    private fun stopEverything() {
-        ringing = false
+    private fun releasePlayer() {
         try {
             player?.stop()
             player?.release()
         } catch (_: Exception) { }
         player = null
+    }
 
+    private fun stopVibration() {
         try {
             vibrator?.cancel()
         } catch (_: Exception) { }
         vibrator = null
+    }
+
+    private fun stopEverything() {
+        ringing = false
+        releasePlayer()
+        stopVibration()
 
         try {
             if (wakeLock?.isHeld == true) wakeLock?.release()

@@ -44,7 +44,11 @@ class KeepAliveService : Service() {
             val i = Intent(this, KeepAliveService::class.java)
             var flags = PendingIntent.FLAG_UPDATE_CURRENT
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags = flags or PendingIntent.FLAG_IMMUTABLE
-            val pi = PendingIntent.getService(this, 91, i, flags)
+            val pi = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                PendingIntent.getForegroundService(this, 91, i, flags)
+            } else {
+                PendingIntent.getService(this, 91, i, flags)
+            }
             val at = System.currentTimeMillis() + 1000L
             am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
         } catch (_: Exception) { }
@@ -58,10 +62,14 @@ class KeepAliveService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         running = true
-        val placeholder = NextAlarmNotifier.buildNotification(
-            this, "qian❤️wei", ""
-        )
-        startForeground(NextAlarmNotifier.NOTI_ID, placeholder)
+        try {
+            val placeholder = NextAlarmNotifier.buildNotification(
+                this, "qian❤️wei", ""
+            )
+            startForeground(NextAlarmNotifier.NOTI_ID, placeholder)
+        } catch (_: Exception) {
+            // 通知权限被拒时 startForeground 会抛异常，吞掉否则保活直接失效
+        }
         refreshContent()
         return START_STICKY
     }

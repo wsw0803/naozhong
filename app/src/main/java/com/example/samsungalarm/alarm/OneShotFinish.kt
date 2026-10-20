@@ -18,6 +18,8 @@ object OneShotFinish {
             try {
                 val alarm = app.repository.alarmById(alarmId) ?: return@launch
                 if (alarm.repeatDays.isEmpty() && alarm.enabled) {
+                    // 一次性闹钟用完：关掉开关并撤掉已登记的 PendingIntent
+                    AlarmScheduler.cancel(context.applicationContext, alarmId)
                     app.repository.setAlarmEnabled(alarmId, false)
                     NextAlarmNotifier.update(
                         context.applicationContext,

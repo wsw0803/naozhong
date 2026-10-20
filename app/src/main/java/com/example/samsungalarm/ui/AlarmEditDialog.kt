@@ -283,20 +283,29 @@ private fun Wheel(
     modifier: Modifier = Modifier,
     onChanged: (Int) -> Unit
 ) {
-    val state = rememberLazyListState(initialFirstVisibleItemIndex = value)
+    // 首尾循环：列表重复 count 份，永远停在中间那份，
+    // 0 往上滑就是 23，23 往下滑就是 0，不会卡在两端。
+    val loops = 200
+    val total = count * loops
+    val center = count * (loops / 2)
+    val state = rememberLazyListState(initialFirstVisibleItemIndex = center + value)
+    var syncing by remember { mutableStateOf(false) }
 
-    LaunchedEffect(value) {
-        if (!state.isScrollInProgress && state.firstVisibleItemIndex != value) {
-            state.scrollToItem(value)
+    // 外部改值（输入框或另一侧滚轮）时同步滚动过去
+    LaunchedEffect(value, count) {
+        if (!state.isScrollInProgress && state.firstVisibleItemIndex % count != value) {
+            syncing = true
+            state.scrollToItem(center + value)
+            syncing = false
         }
     }
 
-    LaunchedEffect(state) {
+    // 停稳后回写选中值
+    LaunchedEffect(state, count) {
         snapshotFlow { state.isScrollInProgress }
             .collect { scrolling ->
-                if (!scrolling) {
-                    val idx = state.firstVisibleItemIndex
-                        .coerceIn(0, count - 1)
+                if (!scrolling && !syncing) {
+                    val idx = ((state.firstVisibleItemIndex % count) + count) % count
                     onChanged(idx)
                 }
             }
@@ -317,7 +326,8 @@ private fun Wheel(
             contentPadding = PaddingValues(vertical = ITEM_H * 2),
             flingBehavior = rememberSnapFlingBehavior(lazyListState = state)
         ) {
-            items((0 until count).toList()) { i ->
+            items(total) { i ->
+                val n = ((i % count) + count) % count
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -327,7 +337,7 @@ private fun Wheel(
                     val selected = state.firstVisibleItemIndex == i &&
                             !state.isScrollInProgress
                     Text(
-                        text = if (i < 10) "0$i" else "$i",
+                        text = if (n < 10) "0$n" else "$n",
                         fontSize = if (selected) 26.sp else 21.sp,
                         fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                         color = if (selected) textPrimary() else textSecondary(),

@@ -10,12 +10,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
-/**
- * 闹钟到点时被系统唤醒。
- * 这里只负责查数据、拉起响铃服务、安排下一次，真正的出声在 AlarmService 里。
- * 响铃后立即刷新常驻通知，让已过期的一次性闹钟不再占位。
- * 另外支持一个「仅刷新通知」的动作，用于通知栏随时间自动前移。
- */
 class AlarmReceiver : BroadcastReceiver() {
 
     companion object {
@@ -31,7 +25,6 @@ class AlarmReceiver : BroadcastReceiver() {
                 return
             }
             ACTION_RING -> {
-                // 继续走下面的响铃流程
             }
             else -> return
         }
@@ -54,7 +47,16 @@ class AlarmReceiver : BroadcastReceiver() {
                 }
 
                 SnoozeStore.clear(context, alarm.id)
-                AlarmService.start(
+
+                // 先把下一次登记好，即使本次响铃被系统限制，循环也不会断
+                if (alarm.repeatDays.isNotEmpty()) {
+                    val next = alarm.nextTriggerAtMillis(Calendar.getInstance())
+                    if (next != null) {
+                        AlarmScheduler.schedule(context, alarm, next)
+                    }
+                }
+
+                val started = AlarmService.start(
                     context = context,
                     alarmId = alarm.id,
                     label = alarm.label,
@@ -62,11 +64,17 @@ class AlarmReceiver : BroadcastReceiver() {
                     vibrate = alarm.vibrate,
                     snoozeMinutes = alarm.snoozeMinutes
                 )
-
-                if (alarm.repeatDays.isNotEmpty()) {
-                    val next = alarm.nextTriggerAtMillis(Calendar.getInstance())
-                    if (next != null) {
-                        AlarmScheduler.schedule(context, alarm, next)
+                if (!started) {
+                    try {
+                        context.startActivity(
+                            Intent(context, AlarmRingActivity::class.java).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                putExtra(AlarmRingActivity.EXTRA_ID, alarm.id)
+                                putExtra(AlarmRingActivity.EXTRA_LABEL, alarm.label)
+                                putExtra(AlarmRingActivity.EXTRA_SNOOZE, alarm.snoozeMinutes)
+                            }
+                        )
+                    } catch (_: Exception) {
                     }
                 }
 
@@ -77,7 +85,6 @@ class AlarmReceiver : BroadcastReceiver() {
         }
     }
 
-    /** 仅刷新常驻通知，不响铃。 */
     private fun refreshOnly(context: Context) {
         val app = context.applicationContext as? AlarmApp ?: return
         val pending = goAsync()

@@ -22,10 +22,15 @@ object AlarmScheduler {
     fun rescheduleAll(c: Context, alarms: List<Alarm>, groups: List<AlarmGroup>) {
         val ge = groups.associate { it.id to it.enabled }
         alarms.forEach { al ->
+            val snoozeAt = SnoozeStore.get(c, al.id)
             cancel(c, al.id)
             if (al.enabled && (ge[al.groupId] ?: true)) {
-                val t = al.nextTriggerAtMillis(Calendar.getInstance())
-                if (t != null) setAlarm(c, al.id, t, REQ + al.id.toInt())
+                if (snoozeAt != null) {
+                    setAlarm(c, al.id, snoozeAt, REQ + al.id.toInt())
+                } else {
+                    val t = al.nextTriggerAtMillis(Calendar.getInstance())
+                    if (t != null) setAlarm(c, al.id, t, REQ + al.id.toInt())
+                }
             }
         }
         NextAlarmNotifier.update(c, alarms, groups)
@@ -36,8 +41,7 @@ object AlarmScheduler {
     fun scheduleSnooze(c: Context, alarmId: Long, minutes: Int) {
         val at = System.currentTimeMillis() + minutes.coerceAtLeast(1) * 60000L
         SnoozeStore.set(c, alarmId, at)
-        val code = SNOOZE + (alarmId % 100000L).toInt() * 1000 + ((at / 60000L) % 1000L).toInt()
-        setAlarm(c, alarmId, at, code)
+        setAlarm(c, alarmId, at, REQ + alarmId.toInt())
     }
 
     private fun setAlarm(c: Context, id: Long, at: Long, requestCode: Int) {
@@ -56,6 +60,7 @@ object AlarmScheduler {
 
     fun cancel(c: Context, id: Long) {
         (c.getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(pi(c, id, REQ + id.toInt()))
+        SnoozeStore.clear(c, id)
     }
 
     private fun flags(): Int {
