@@ -2,6 +2,7 @@ package com.example.samsungalarm.update
 
 import android.os.Handler
 import android.os.Looper
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -22,7 +23,7 @@ data class UpdateInfo(
 object UpdateChecker {
 
     private const val API =
-        "https://api.github.com/repos/wsw0803/naozhong/releases/latest"
+        "https://api.github.com/repos/wsw0803/naozhong/releases?per_page=30"
 
     /** 语义化比较：a 是否比 b 新。 */
     fun isNewer(a: String, b: String): Boolean {
@@ -71,7 +72,18 @@ object UpdateChecker {
             val code = conn.responseCode
             if (code != 200) throw IllegalStateException("HTTP " + code)
             val text = conn.inputStream.bufferedReader().use { it.readText() }
-            val obj = JSONObject(text)
+            // 旧实现直接读 /releases/latest，一旦 latest 标记或排序异常就会漏掉新版本。
+            // 这里改为拉发布列表，自己按语义版本挑出最高的一个。
+            val arr = JSONArray(text)
+            var picked: JSONObject? = null
+            for (i in 0 until arr.length()) {
+                val it = arr.optJSONObject(i) ?: continue
+                if (it.optBoolean("draft") || it.optBoolean("prerelease")) continue
+                val t = it.optString("tag_name")
+                if (t.isBlank()) continue
+                if (picked == null || isNewer(t, picked.optString("tag_name"))) picked = it
+            }
+            val obj = picked ?: return null
             val tag = obj.optString("tag_name")
             var name = obj.optString("name")
             if (name.isBlank()) name = tag

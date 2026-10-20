@@ -341,7 +341,7 @@ onValueChangeFinished = { store?.update(s.copy(dpiScale = localDpiScale)) },
                                     }
                                     downloading = true
                                     updateMsg = "开始下载…"
-                                    UpdateInstaller.download(ctx, apk, { pct ->
+                                    UpdateInstaller.download(ctx, apk, latest.latestVersion, { pct ->
                                         updateMsg = "下载中 " + pct + "%"
                                     }) { res ->
                                         downloading = false

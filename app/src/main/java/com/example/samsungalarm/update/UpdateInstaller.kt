@@ -36,24 +36,51 @@ object UpdateInstaller {
         return MIRRORS.map { it + url }
     }
 
-    fun download(context: Context, url: String, onProgress: ((Int) -> Unit)?, onDone: (Result<File>) -> Unit) {
+    fun download(context: Context, url: String, onProgress: ((Int) -> Unit)?, onDone: (Result<File>) -> Unit) =
+        download(context, url, null, onProgress, onDone)
+
+    /** expectedVersion 传入最新版本号，下载完会核对 APK 里的 versionName。 */
+    fun download(
+        context: Context,
+        url: String,
+        expectedVersion: String?,
+        onProgress: ((Int) -> Unit)?,
+        onDone: (Result<File>) -> Unit
+    ) {
         val t = Thread {
-            val res = runCatching { downloadBest(context, url, onProgress) }
+            val res = runCatching { downloadBest(context, url, expectedVersion, onProgress) }
             Handler(Looper.getMainLooper()).post { onDone(res) }
         }
         t.isDaemon = true
         t.start()
     }
 
-    private fun downloadBest(context: Context, url: String, onProgress: ((Int) -> Unit)?): File {
+    private fun downloadBest(
+        context: Context,
+        url: String,
+        expectedVersion: String?,
+        onProgress: ((Int) -> Unit)?
+    ): File {
         val out = targetFile(context)
-        if (isApkValid(context, out)) return out
+        // 关键修复：以前只要下载目录已有能解析的 APK 就直接返回，
+        // 于是永远装回上一次残留的旧包（例如一直停在 2.1.2）。这里一律作废旧缓存。
+        if (out.exists()) out.delete()
         var lastErr: Exception? = null
         for (cand in candidates(url)) {
             try {
                 if (out.exists()) out.delete()
                 val ok = multiThread(cand, out, onProgress)
-                if (ok && isApkValid(context, out)) return out
+                if (!ok) continue
+                if (!isApkValid(context, out)) {
+                    out.delete()
+                    continue
+                }
+                if (expectedVersion != null && !versionMatches(context, out, expectedVersion)) {
+                    out.delete()
+                    lastErr = IllegalStateException("下载到的不是 " + expectedVersion)
+                    continue
+                }
+                return out
             } catch (e: Exception) {
                 lastErr = e
             }
@@ -69,6 +96,18 @@ object UpdateInstaller {
         val ext = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: File(context.filesDir, "downloads")
         ext.mkdirs()
         return File(ext, FILE_NAME)
+    }
+
+    private fun versionMatches(context: Context, f: File, expected: String): Boolean {
+        return try {
+            val info = context.packageManager.getPackageArchiveInfo(f.absolutePath, 0) ?: return false
+            @Suppress("DEPRECATION")
+            val name = info.versionName ?: return false
+            name.trim().removePrefix("v").removePrefix("V") ==
+                expected.trim().removePrefix("v").removePrefix("V")
+        } catch (e: Exception) {
+            false
+        }
     }
 
     private fun isApkValid(context: Context, f: File): Boolean {
