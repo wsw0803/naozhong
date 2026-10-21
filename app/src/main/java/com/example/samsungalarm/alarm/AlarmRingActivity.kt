@@ -51,6 +51,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.samsungalarm.AlarmApp
 import com.example.samsungalarm.ui.GlassSettingsStore
 import com.example.samsungalarm.ui.LocalGlassSettings
 import com.example.samsungalarm.ui.LocalGlassStore
@@ -66,6 +67,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -85,6 +88,7 @@ class AlarmRingActivity : ComponentActivity() {
         val label = intent?.getStringExtra(EXTRA_LABEL).orEmpty()
         val time = intent?.getStringExtra(EXTRA_TIME).orEmpty()
         val snooze = intent?.getIntExtra(EXTRA_SNOOZE, 5) ?: 5
+        ensureRinging(id, label, snooze)
         val store = GlassSettingsStore(applicationContext)
         setContent {
             CompositionLocalProvider(
@@ -100,6 +104,34 @@ class AlarmRingActivity : ComponentActivity() {
                         onSnooze = { doSnooze(id, snooze) }
                     )
                 }
+            }
+        }
+    }
+
+    /**
+     * 补一次响铃。
+     *
+     * 兜底通知被点开、或系统把全屏页弹出来时，AlarmService 往往因为
+     * 后台限制没起来（这时只有通知响了一声）。Activity 已经在前台了，
+     * 此时启动前台服务是完全合法的，所以在这里补上，保证进来一直有声音。
+     */
+    private fun ensureRinging(id: Long, label: String, snooze: Int) {
+        if (id < 0 || AlarmService.isRinging) return
+        val app = application as? AlarmApp ?: return
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val alarm = app.repository.alarmById(id) ?: return@launch
+                val started = AlarmService.start(
+                    context = applicationContext,
+                    alarmId = alarm.id,
+                    label = if (alarm.label.isBlank()) label else alarm.label,
+                    ringtone = alarm.ringtoneUri,
+                    vibrate = alarm.vibrate,
+                    snoozeMinutes = if (snooze > 0) snooze else alarm.snoozeMinutes
+                )
+                // 服务真的起来了才撤兜底通知，否则会把唯一的声音来源关掉
+                if (started) AlarmFallback.dismiss(applicationContext)
+            } catch (_: Exception) {
             }
         }
     }
@@ -122,11 +154,13 @@ class AlarmRingActivity : ComponentActivity() {
 
     private fun stopRinging() {
         AlarmService.stop(applicationContext)
+        AlarmFallback.dismiss(applicationContext)
         finishAndRemoveTask()
     }
 
     private fun doSnooze(id: Long, minutes: Int) {
         AlarmService.stop(applicationContext, keepEnabled = true)
+        AlarmFallback.dismiss(applicationContext)
         if (id >= 0) AlarmScheduler.scheduleSnooze(applicationContext, id, minutes)
         finishAndRemoveTask()
     }
@@ -214,7 +248,7 @@ private fun SlideToAction(
             val from = offsetX
             for (i in 1..10) {
                 offsetX = from * (1f - i / 10f)
-                kotlinx.coroutines.delay(14)
+                delay(14)
             }
             offsetX = 0f
         }
@@ -231,15 +265,17 @@ private fun SlideToAction(
             .pointerInput(widthPx, forward) {
                 detectHorizontalDragGestures(
                     onDragEnd = {
-                        val reached = if (forward) offsetX >= maxOffset * 0.85f
-                                      else offsetX <= -maxOffset * 0.85f
+                        val reached = if (forward) offsetX >= maxOffset * 0.85f else offsetX <= -maxOffset * 0.85f
                         if (maxOffset > 0f && reached) onDone() else snapBack()
                     },
                     onDragCancel = { snapBack() },
                     onHorizontalDrag = { change, drag ->
                         change.consume()
-                        offsetX = if (forward) (offsetX + drag).coerceIn(0f, maxOffset)
-                                  else (offsetX + drag).coerceIn(-maxOffset, 0f)
+                        offsetX = if (forward) {
+                            (offsetX + drag).coerceIn(0f, maxOffset)
+                        } else {
+                            (offsetX + drag).coerceIn(-maxOffset, 0f)
+                        }
                     }
                 )
             },
@@ -247,8 +283,7 @@ private fun SlideToAction(
     ) {
         Text(
             text,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium,
+            fontSize = 16.sp, fontWeight = FontWeight.Medium,
             color = textSecondary(),
             modifier = Modifier.fillMaxWidth(),
             textAlign = TextAlign.Center

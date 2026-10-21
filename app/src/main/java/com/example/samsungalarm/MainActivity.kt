@@ -2,6 +2,7 @@ package com.example.samsungalarm
 
 import android.Manifest
 import android.app.AlarmManager
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -47,6 +48,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+
+    companion object {
+        private const val PERM_PREFS = "alarm_perm_prompt"
+        private const val KEY_EXACT_ALARM = "asked_exact_alarm"
+        private const val KEY_FULL_SCREEN = "asked_full_screen"
+    }
 
     private val requestNotif =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -135,16 +142,54 @@ class MainActivity : ComponentActivity() {
                 requestNotif.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val am = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            if (!am.canScheduleExactAlarms()) {
-                try {
-                    startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+
+        // 没有精确闹钟权限时只能用非精确闹钟，响铃时间可能被系统推迟很多。
+        askSpecialPermissionOnce(KEY_EXACT_ALARM) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val am = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+                if (am.canScheduleExactAlarms()) {
+                    null
+                } else {
+                    Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
                         data = Uri.parse("package:" + packageName)
-                    })
-                } catch (_: Exception) {
+                    }
                 }
+            } else {
+                null
             }
+        }
+
+        // Android 14 起，非「闹钟/通话」类应用默认拿不到全屏通知权限，
+        // 拿不到时响铃页只能降级成横幅提示，锁屏不亮。
+        askSpecialPermissionOnce(KEY_FULL_SCREEN) {
+            if (Build.VERSION.SDK_INT >= 34) {
+                val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                if (nm.canUseFullScreenIntent()) {
+                    null
+                } else {
+                    Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT).apply {
+                        data = Uri.parse("package:" + packageName)
+                    }
+                }
+            } else {
+                null
+            }
+        }
+    }
+
+    /**
+     * 系统特殊权限每次安装只引导一次。
+     * 之前是每次 onResume 判断一次就跳设置页，用户点「拒绝」后会被反复弹，
+     * 一直盖住主界面，体验很差。
+     */
+    private fun askSpecialPermissionOnce(key: String, build: () -> Intent?) {
+        val sp = getSharedPreferences(PERM_PREFS, MODE_PRIVATE)
+        if (sp.getBoolean(key, false)) return
+        val intent = build() ?: return
+        sp.edit().putBoolean(key, true).apply()
+        try {
+            startActivity(intent)
+        } catch (_: Exception) {
         }
     }
 }

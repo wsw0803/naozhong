@@ -38,21 +38,42 @@ class KeepAliveService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        // 应用被从最近任务划掉时，1 秒后自动拉起保活服务，保证闹钟继续生效
+        // 应用被从最近任务划掉时，尽快把保活服务拉回来，保证闹钟继续生效。
+        // 拉两次：1 秒后先试精确闹钟，20 秒后再兜一次非精确的。
+        scheduleSelfResurrection(1000L, preferExact = true)
+        scheduleSelfResurrection(20000L, preferExact = false)
+        super.onTaskRemoved(rootIntent)
+    }
+
+    /**
+     * 安排一次「把自己拉起来」。
+     *
+     * 关键修复：没有「闹钟和提醒」权限时 setExactAndAllowWhileIdle 会抛
+     * SecurityException，原来被 catch 吞掉后就再也拉不起来了 —— 划掉任务即死。
+     * 现在退到非精确的 setAndAllowWhileIdle，虽然可能晚几分钟，但不会完全失效。
+     */
+    private fun scheduleSelfResurrection(delayMs: Long, preferExact: Boolean) {
         try {
             val am = getSystemService(Context.ALARM_SERVICE) as AlarmManager
             val i = Intent(this, KeepAliveService::class.java)
             var flags = PendingIntent.FLAG_UPDATE_CURRENT
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags = flags or PendingIntent.FLAG_IMMUTABLE
-            val pi = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                PendingIntent.getForegroundService(this, 91, i, flags)
-            } else {
-                PendingIntent.getService(this, 91, i, flags)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                flags = flags or PendingIntent.FLAG_IMMUTABLE
             }
-            val at = System.currentTimeMillis() + 1000L
-            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
+            val requestCode = if (preferExact) 91 else 92
+            val pi = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                PendingIntent.getForegroundService(this, requestCode, i, flags)
+            } else {
+                PendingIntent.getService(this, requestCode, i, flags)
+            }
+            val at = System.currentTimeMillis() + delayMs
+            val canExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms()
+            if (preferExact && canExact) {
+                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
+            } else {
+                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
+            }
         } catch (_: Exception) { }
-        super.onTaskRemoved(rootIntent)
     }
 
     override fun onDestroy() {

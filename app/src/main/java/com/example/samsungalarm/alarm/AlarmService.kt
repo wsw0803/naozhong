@@ -46,6 +46,10 @@ class AlarmService : Service() {
         private const val NOTI_ID = 90001
         @Volatile var keepEnabledOnStop = false
 
+        /** 当前是否真的在响。响铃页据此判断要不要补一次启动，避免重复从头播。 */
+        @Volatile var isRinging = false
+            private set
+
         const val CHANNEL_ID = "alarm_ringing"
 
         fun start(
@@ -133,6 +137,7 @@ class AlarmService : Service() {
             stopVibration()
         }
         ringing = true
+        isRinging = true
         currentAlarmId = alarmId
 
         acquireWakeLock()
@@ -298,7 +303,7 @@ class AlarmService : Service() {
         toneJob = CoroutineScope(Dispatchers.Default).launch {
             try {
                 while (ringing) {
-                    toneGen?.startTone(ToneGenerator.TONE_SUP_ALERT, 1200)
+                    toneGen?.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 1200)
                     delay(1500L)
                 }
             } catch (_: Exception) {
@@ -344,6 +349,7 @@ class AlarmService : Service() {
 
     private fun stopEverything() {
         ringing = false
+        isRinging = false
         releasePlayer()
         stopVibration()
         try {
