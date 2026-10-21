@@ -34,6 +34,9 @@ class AlarmReceiver : BroadcastReceiver() {
             }
             ACTION_DISMISS -> {
                 AlarmFallback.dismiss(context)
+                // 兜底通知和响铃服务可能同时存在（服务晚一步才起来），
+                // 点「停止」必须把声音一起停掉，否则通知没了声音还在响。
+                AlarmService.stop(context)
                 OneShotFinish.finish(context, intent.getLongExtra(EXTRA_ALARM_ID, -1L))
                 refreshOnly(context)
                 return
@@ -42,6 +45,8 @@ class AlarmReceiver : BroadcastReceiver() {
                 val id = intent.getLongExtra(EXTRA_ALARM_ID, -1L)
                 val minutes = intent.getIntExtra(EXTRA_SNOOZE_MINUTES, 5)
                 AlarmFallback.dismiss(context)
+                // keepEnabled = true：延迟不属于「用完了」，别让一次性闹钟被关掉
+                AlarmService.stop(context, keepEnabled = true)
                 if (id >= 0) AlarmScheduler.scheduleSnooze(context, id, minutes)
                 refreshOnly(context)
                 return
