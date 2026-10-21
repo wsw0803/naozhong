@@ -11,6 +11,7 @@ import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.RingtoneManager
+import android.media.ToneGenerator
 import android.net.Uri
 import android.os.Build
 import android.os.IBinder
@@ -19,10 +20,10 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import androidx.core.app.NotificationCompat
 import com.example.samsungalarm.AlarmApp
-import com.example.samsungalarm.MainActivity
-import com.example.samsungalarm.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -77,13 +78,18 @@ class AlarmService : Service() {
 
         fun stop(context: Context, keepEnabled: Boolean = false) {
             keepEnabledOnStop = keepEnabled
-            context.startService(
-                Intent(context, AlarmService::class.java).apply { action = ACTION_STOP }
-            )
+            try {
+                context.startService(
+                    Intent(context, AlarmService::class.java).apply { action = ACTION_STOP }
+                )
+            } catch (_: Exception) {
+            }
         }
     }
 
     private var player: MediaPlayer? = null
+    private var toneGen: ToneGenerator? = null
+    private var toneJob: Job? = null
     private var vibrator: Vibrator? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var ringing = false
@@ -92,8 +98,11 @@ class AlarmService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent == null) { stopEverything(); return START_NOT_STICKY }
-        when (intent?.action) {
+        if (intent == null) {
+            stopEverything()
+            return START_NOT_STICKY
+        }
+        when (intent.action) {
             ACTION_STOP -> {
                 if (!keepEnabledOnStop) OneShotFinish.finish(this, currentAlarmId)
                 keepEnabledOnStop = false
@@ -101,18 +110,24 @@ class AlarmService : Service() {
                 return START_NOT_STICKY
             }
             else -> {
-                val id = intent?.getLongExtra(EXTRA_ALARM_ID, -1L) ?: -1L
-                val label = intent?.getStringExtra(EXTRA_LABEL).orEmpty()
-                val tone = intent?.getStringExtra(EXTRA_RINGTONE)
-                val vib = intent?.getBooleanExtra(EXTRA_VIBRATE, true) ?: true
-                val sn = intent?.getIntExtra(EXTRA_SNOOZE, 5) ?: 5
-                startRinging(id, label, tone, vib, sn)
+                val id = intent.getLongExtra(EXTRA_ALARM_ID, -1L)
+                val label = intent.getStringExtra(EXTRA_LABEL).orEmpty()
+                val toneUri = intent.getStringExtra(EXTRA_RINGTONE)
+                val vib = intent.getBooleanExtra(EXTRA_VIBRATE, true)
+                val sn = intent.getIntExtra(EXTRA_SNOOZE, 5)
+                startRinging(id, label, toneUri, vib, sn)
             }
         }
         return START_NOT_STICKY
     }
 
-    private fun startRinging(alarmId: Long, label: String, tone: String?, vibrate: Boolean, snooze: Int) {
+    private fun startRinging(
+        alarmId: Long,
+        label: String,
+        toneUri: String?,
+        vibrate: Boolean,
+        snooze: Int
+    ) {
         if (ringing) {
             releasePlayer()
             stopVibration()
@@ -121,10 +136,19 @@ class AlarmService : Service() {
         currentAlarmId = alarmId
 
         acquireWakeLock()
-        showForegroundNotification(label)
+        // 前台通知失败（通知被禁、FGS 类型受限、个别 ROM）不能影响响铃，
+        // 否则还没出声整个服务就崩了，表现就是「不响」。
+        try {
+            showForegroundNotification(label)
+        } catch (_: Exception) {
+            try {
+                startForeground(NOTI_ID, buildRingingNotification(label))
+            } catch (_: Exception) {
+            }
+        }
         launchFullScreen(alarmId, label, snooze)
         ensureAlarmVolume()
-        playSound(tone)
+        playSound(toneUri)
         if (vibrate) startVibration()
     }
 
@@ -160,19 +184,23 @@ class AlarmService : Service() {
             nm.createNotificationChannel(ch)
         }
 
-        val stopIntent = Intent(this, AlarmService::class.java).apply {
-            action = ACTION_STOP
-        }
-        var flags = PendingIntent.FLAG_UPDATE_CURRENT
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            flags = flags or PendingIntent.FLAG_IMMUTABLE
-        }
-        val stopPi = PendingIntent.getService(this, 1, stopIntent, flags)
+        startForeground(NOTI_ID, buildRingingNotification(label))
+    }
 
-        val openIntent = Intent(this, AlarmRingActivity::class.java)
-        val openPi = PendingIntent.getActivity(this, 2, openIntent, flags)
-
-        val noti = NotificationCompat.Builder(this, CHANNEL_ID)
+    private fun buildRingingNotification(label: String): Notification {
+        val openPi = PendingIntent.getActivity(
+            this,
+            2,
+            Intent(this, AlarmRingActivity::class.java),
+            flags()
+        )
+        val stopPi = PendingIntent.getService(
+            this,
+            1,
+            Intent(this, AlarmService::class.java).apply { action = ACTION_STOP },
+            flags()
+        )
+        return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle("闹钟")
             .setContentText(if (label.isBlank()) "时间到了" else label)
@@ -184,8 +212,12 @@ class AlarmService : Service() {
             .setFullScreenIntent(openPi, true)
             .addAction(0, "停止", stopPi)
             .build()
+    }
 
-        startForeground(NOTI_ID, noti)
+    private fun flags(): Int {
+        var f = PendingIntent.FLAG_UPDATE_CURRENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) f = f or PendingIntent.FLAG_IMMUTABLE
+        return f
     }
 
     private fun launchFullScreen(alarmId: Long, label: String, snooze: Int) {
@@ -203,6 +235,9 @@ class AlarmService : Service() {
     private fun ensureAlarmVolume() {
         try {
             val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            // 用户主动按了静音键（音量 0）时不强行掰回来，留给用户自己决定。
+            // 需要 MODIFY_AUDIO_SETTINGS 权限，Manifest 里已补上。
+            if (am.isStreamMute(AudioManager.STREAM_ALARM)) return
             val max = am.getStreamMaxVolume(AudioManager.STREAM_ALARM)
             val cur = am.getStreamVolume(AudioManager.STREAM_ALARM)
             val target = (max * 0.7f).toInt().coerceAtLeast(1)
@@ -211,18 +246,29 @@ class AlarmService : Service() {
         }
     }
 
-    private fun playSound(tone: String?) {
-        val uri: Uri = try {
-            if (tone.isNullOrBlank()) {
+    private fun playSound(toneUri: String?) {
+        val uri: Uri? = try {
+            if (toneUri.isNullOrBlank()) {
                 RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
             } else {
-                Uri.parse(tone)
+                Uri.parse(toneUri)
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
         }
 
-        try {
+        if (tryPlay(uri)) return
+        if (tryPlay(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM))) return
+        if (tryPlay(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))) return
+        // 铃声全都读不出来（自定义铃声被删、媒体库异常等）时，
+        // 用 ToneGenerator 直接合成报警音，保证一定有声
+        startBeepLoop()
+    }
+
+    private fun tryPlay(uri: Uri?): Boolean {
+        if (uri == null) return false
+        return try {
+            releasePlayer()
             player = MediaPlayer().apply {
                 setAudioAttributes(
                     AudioAttributes.Builder()
@@ -235,25 +281,28 @@ class AlarmService : Service() {
                 prepare()
                 start()
             }
-        } catch (e: Exception) {
-            // 指定的铃声读不到就退回默认闹钟音
+            true
+        } catch (_: Exception) {
+            releasePlayer()
+            false
+        }
+    }
+
+    private fun startBeepLoop() {
+        toneGen = try {
+            ToneGenerator(AudioManager.STREAM_ALARM, 100)
+        } catch (_: Exception) {
+            null
+        }
+        if (toneGen == null) return
+        toneJob = CoroutineScope(Dispatchers.Default).launch {
             try {
-                player?.release()
-                player = MediaPlayer().apply {
-                    setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_ALARM)
-                            .build()
-                    )
-                    setDataSource(
-                        this@AlarmService,
-                        RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                    )
-                    isLooping = true
-                    prepare()
-                    start()
+                while (ringing) {
+                    toneGen?.startTone(ToneGenerator.TONE_SUP_ALERT, 1200)
+                    delay(1500L)
                 }
-            } catch (_: Exception) { }
+            } catch (_: Exception) {
+            }
         }
     }
 
@@ -276,6 +325,14 @@ class AlarmService : Service() {
             player?.release()
         } catch (_: Exception) { }
         player = null
+        try {
+            toneJob?.cancel()
+        } catch (_: Exception) { }
+        toneJob = null
+        try {
+            toneGen?.release()
+        } catch (_: Exception) { }
+        toneGen = null
     }
 
     private fun stopVibration() {
@@ -289,15 +346,14 @@ class AlarmService : Service() {
         ringing = false
         releasePlayer()
         stopVibration()
-
         try {
             if (wakeLock?.isHeld == true) wakeLock?.release()
         } catch (_: Exception) { }
         wakeLock = null
-
-        stopForeground(true)
+        try {
+            stopForeground(true)
+        } catch (_: Exception) { }
         stopSelf()
-
         // 停止后刷新常驻通知：一次性闹钟已经响过，不该继续占位
         refreshNextAlarmNotification()
     }

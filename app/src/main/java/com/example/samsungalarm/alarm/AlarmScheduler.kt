@@ -26,6 +26,10 @@ object AlarmScheduler {
             cancel(c, al.id)
             if (al.enabled && (ge[al.groupId] ?: true)) {
                 if (snoozeAt != null) {
+                    // cancel() 会把延迟记录一起清掉，这里必须补写回去。
+                    // 否则常驻通知读不到延迟时间，会显示成闹钟原本的下一次，
+                    // 看起来就像「延迟没生效 / 闹钟乱了」。
+                    SnoozeStore.set(c, al.id, snoozeAt)
                     setAlarm(c, al.id, snoozeAt, REQ + al.id.toInt())
                 } else {
                     val t = al.nextTriggerAtMillis(Calendar.getInstance())

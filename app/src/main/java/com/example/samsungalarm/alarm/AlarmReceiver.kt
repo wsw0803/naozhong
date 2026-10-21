@@ -15,12 +15,34 @@ class AlarmReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_RING = "com.example.samsungalarm.RING"
         const val ACTION_REFRESH = "com.example.samsungalarm.REFRESH_NEXT"
+
+        /** 兜底通知里的「停止」按钮，不需要 Service 也能处理。 */
+        const val ACTION_DISMISS = "com.example.samsungalarm.DISMISS"
+
+        /** 兜底通知里的「稍后提醒」按钮。 */
+        const val ACTION_SNOOZE = "com.example.samsungalarm.SNOOZE"
+
         const val EXTRA_ALARM_ID = "alarm_id"
+        const val EXTRA_SNOOZE_MINUTES = "snooze_minutes"
     }
 
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
             ACTION_REFRESH -> {
+                refreshOnly(context)
+                return
+            }
+            ACTION_DISMISS -> {
+                AlarmFallback.dismiss(context)
+                OneShotFinish.finish(context, intent.getLongExtra(EXTRA_ALARM_ID, -1L))
+                refreshOnly(context)
+                return
+            }
+            ACTION_SNOOZE -> {
+                val id = intent.getLongExtra(EXTRA_ALARM_ID, -1L)
+                val minutes = intent.getIntExtra(EXTRA_SNOOZE_MINUTES, 5)
+                AlarmFallback.dismiss(context)
+                if (id >= 0) AlarmScheduler.scheduleSnooze(context, id, minutes)
                 refreshOnly(context)
                 return
             }
@@ -56,6 +78,8 @@ class AlarmReceiver : BroadcastReceiver() {
                     }
                 }
 
+                AlarmFallback.dismiss(context)
+
                 val started = AlarmService.start(
                     context = context,
                     alarmId = alarm.id,
@@ -65,6 +89,9 @@ class AlarmReceiver : BroadcastReceiver() {
                     snoozeMinutes = alarm.snoozeMinutes
                 )
                 if (!started) {
+                    // 前台服务被 ROM 拦下：改走完全不依赖 Service 的兜底通道，
+                    // 至少保证有声、能亮屏；再尽量把响铃页也拉起来
+                    AlarmFallback.show(context, alarm.id, alarm.label, alarm.snoozeMinutes)
                     try {
                         context.startActivity(
                             Intent(context, AlarmRingActivity::class.java).apply {
