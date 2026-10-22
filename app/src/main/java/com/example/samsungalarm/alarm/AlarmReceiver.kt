@@ -59,11 +59,12 @@ class AlarmReceiver : BroadcastReceiver() {
         val alarmId = intent.getLongExtra(EXTRA_ALARM_ID, -1L)
         if (alarmId < 0) return
 
-        val app = context.applicationContext as? AlarmApp
+        // manifest 里 android:name=".AlarmApp" 保证就是这个类型
+        val app = context.applicationContext as AlarmApp
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val alarm = if (app == null) null else readAlarm(app, alarmId)
+                val alarm = readAlarm(app, alarmId)
                 if (alarm == null) {
                     // 开机后还没解锁：Room 在凭据加密区读不到，
                     // 改走设备加密区的镜像，保证这一觉依然响
