@@ -9,7 +9,6 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import androidx.lifecycle.lifecycleScope
 import com.example.samsungalarm.alarm.AlarmScheduler
 import com.example.samsungalarm.AlarmApp
 import android.provider.Settings
@@ -142,8 +141,22 @@ class MainActivity : ComponentActivity() {
                 requestNotif.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
+        // 系统特殊权限只在「确实有启用的闹钟」时才引导。
+        // 原先全新安装一进来就被弹进系统设置页，很突兀；
+        // 而且设置页里本来就有完整的「权限自检」，随时能自己点进去开。
+        CoroutineScope(Dispatchers.IO).launch {
+            val hasAlarm = try {
+                (application as AlarmApp).repository.allAlarms().any { it.enabled }
+            } catch (_: Exception) {
+                false
+            }
+            if (hasAlarm) runOnUiThread { promptSpecialPermissions() }
+        }
+    }
 
-        // 没有精确闹钟权限时只能用非精确闹钟，响铃时间可能被系统推迟很多。
+    /** 精确闹钟 / 全屏通知引导：每次安装只弹一次，用户拒绝后不再反复打扰。 */
+    private fun promptSpecialPermissions() {
+        // 没有精确闹钟权限时只能退到非精确闹钟，响铃时间可能被系统推迟很多
         askSpecialPermissionOnce(KEY_EXACT_ALARM) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 val am = getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -178,7 +191,7 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * 系统特殊权限每次安装只引导一次。
+     * 系统特殊权限每个只引导一次。
      * 之前是每次 onResume 判断一次就跳设置页，用户点「拒绝」后会被反复弹，
      * 一直盖住主界面，体验很差。
      */
