@@ -50,7 +50,8 @@
             </intent-filter>
         </activity>
 
-        <!-- 闹钟响铃前台服务 -->
+        <!-- 闹钟响铃页。没加 directBootAware：解锁前它要读 SharedPreferences
+             （凭据加密区），会失败；解锁前靠响铃服务出声 + 全屏通知亮屏就够了。 -->
         <activity
             android:name=".alarm.AlarmRingActivity"
             android:exported="false"
@@ -68,19 +69,26 @@
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="alarm_keep_alive" />
         </service>
 
+        <!-- 解锁前也要能被拉起，所以 directBootAware。
+             它本身不读写凭据加密区（数据库相关的调用都包了 try/catch）。 -->
         <service
             android:name=".alarm.AlarmService"
             android:exported="false"
+            android:directBootAware="true"
             android:foregroundServiceType="mediaPlayback" />
 
+        <!-- directBootAware：解锁前闹钟广播也能送达（走设备加密区的镜像响铃） -->
         <receiver
             android:name=".alarm.AlarmReceiver"
-            android:exported="false" />
+            android:exported="false"
+            android:directBootAware="true" />
 
         <receiver
             android:name=".alarm.BootReceiver"
-            android:exported="true">
+            android:exported="true"
+            android:directBootAware="true">
             <intent-filter>
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>

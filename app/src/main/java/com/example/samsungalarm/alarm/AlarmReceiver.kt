@@ -59,11 +59,18 @@ class AlarmReceiver : BroadcastReceiver() {
         val alarmId = intent.getLongExtra(EXTRA_ALARM_ID, -1L)
         if (alarmId < 0) return
 
-        val app = context.applicationContext as AlarmApp
+        val app = context.applicationContext as? AlarmApp
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val alarm = app.repository.alarmById(alarmId) ?: return@launch
+                val alarm = if (app == null) null else readAlarm(app, alarmId)
+                if (alarm == null) {
+                    // 开机后还没解锁：Room 在凭据加密区读不到，
+                    // 改走设备加密区的镜像，保证这一觉依然响
+                    ringFromMirror(context, alarmId)
+                    return@launch
+                }
+
                 val groups = app.repository.allGroups()
                 val groupEnabled =
                     groups.firstOrNull { it.id == alarm.groupId }?.enabled ?: true
@@ -111,9 +118,38 @@ class AlarmReceiver : BroadcastReceiver() {
                 }
 
                 NextAlarmNotifier.update(context, app.repository.allAlarms(), groups)
+            } catch (_: Exception) {
+                // 兜底：任何异常都不该让闹钟静默死掉
+                ringFromMirror(context, alarmId)
             } finally {
                 pending.finish()
             }
+        }
+    }
+
+    /** 读数据库。解锁前数据库不可用会抛异常，这里返回 null 交给镜像路径。 */
+    private suspend fun readAlarm(app: AlarmApp, alarmId: Long) = try {
+        app.repository.alarmById(alarmId)
+    } catch (_: Exception) {
+        null
+    }
+
+    /**
+     * 未解锁时的响铃路径：只用设备加密区的镜像。
+     * id / 标签 / 铃声 / 振动 / 延迟时长，够 AlarmService 用。
+     */
+    private fun ringFromMirror(context: Context, alarmId: Long) {
+        val p = PendingAlarmStore.get(context, alarmId) ?: return
+        val started = AlarmService.start(
+            context = context,
+            alarmId = p.id,
+            label = p.label,
+            ringtone = p.ringtone,
+            vibrate = p.vibrate,
+            snoozeMinutes = p.snoozeMinutes
+        )
+        if (!started) {
+            AlarmFallback.show(context, p.id, p.label, p.snoozeMinutes)
         }
     }
 
@@ -125,6 +161,7 @@ class AlarmReceiver : BroadcastReceiver() {
                 val alarms = app.repository.allAlarms()
                 val groups = app.repository.allGroups()
                 NextAlarmNotifier.update(context, alarms, groups)
+            } catch (_: Exception) {
             } finally {
                 pending.finish()
             }
