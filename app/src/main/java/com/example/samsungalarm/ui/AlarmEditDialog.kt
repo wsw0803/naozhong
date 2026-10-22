@@ -20,12 +20,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -46,15 +45,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.samsungalarm.data.Alarm
-import com.example.samsungalarm.ui.theme.GlassPrimary
 import com.example.samsungalarm.ui.LocalGlassSettings
+import com.example.samsungalarm.ui.theme.GlassPrimary
 import com.example.samsungalarm.ui.theme.glassFill
-import com.example.samsungalarm.ui.theme.isDark
 import com.example.samsungalarm.ui.theme.textPrimary
 import com.example.samsungalarm.ui.theme.textSecondary
 import java.util.Calendar
 
 private val ITEM_H = 46.dp
+
+/** 稍后提醒可选时长（分钟）。 */
+private val SNOOZE_CHOICES = listOf(5, 10, 15, 20, 30)
 
 /** 新建 / 编辑闹钟：滚轮和直接输入同页显示，两边双向同步。 */
 @Composable
@@ -75,6 +76,7 @@ fun AlarmEditDialog(
     var vibrate by remember { mutableStateOf(alarm?.vibrate ?: true) }
     var days by remember { mutableStateOf(alarm?.repeatDays ?: emptySet()) }
     var ringtone by remember { mutableStateOf(alarm?.ringtoneUri) }
+    var snooze by remember { mutableStateOf(alarm?.snoozeMinutes ?: 5) }
     var textTime by remember {
         mutableStateOf(String.format("%02d:%02d", defHour, defMinute))
     }
@@ -180,6 +182,13 @@ fun AlarmEditDialog(
                         }
                     }
                 }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    if (days.isEmpty()) "不选 = 只响一次（今天这个时间已过会顺延到明天）"
+                    else "已选 " + days.size + " 天",
+                    fontSize = 11.sp,
+                    color = textSecondary()
+                )
 
                 Spacer(Modifier.height(14.dp))
 
@@ -190,6 +199,20 @@ fun AlarmEditDialog(
                     label = { Text("标签") },
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                Spacer(Modifier.height(14.dp))
+
+                // 稍后提醒时长：以前写死在 5 分钟，数据模型里其实早就有这个字段
+                Text("稍后提醒", fontSize = 12.sp, color = textSecondary())
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for (m in SNOOZE_CHOICES) {
+                        SnoozeChip(
+                            label = m.toString() + " 分",
+                            selected = snooze == m
+                        ) { snooze = m }
+                    }
+                }
 
                 Spacer(Modifier.height(14.dp))
 
@@ -219,7 +242,9 @@ fun AlarmEditDialog(
                             }
                         }
                         picker.launch(i)
-                    }) { Text("选择", color = GlassPrimary) }
+                    }) {
+                        Text("选择", color = GlassPrimary)
+                    }
                 }
 
                 Spacer(Modifier.height(10.dp))
@@ -244,17 +269,40 @@ fun AlarmEditDialog(
                         label = label.trim(),
                         vibrate = vibrate,
                         repeatDays = days,
-                        ringtoneUri = ringtone
+                        ringtoneUri = ringtone,
+                        snoozeMinutes = snooze
                     )
                 )
-            }) { Text("保存", color = GlassPrimary) }
+            }) {
+                Text("保存", color = GlassPrimary)
+            }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消", color = textSecondary()) }
+            TextButton(onClick = onDismiss) {
+                Text("取消", color = textSecondary())
+            }
         },
         shape = RoundedCornerShape(LocalGlassSettings.current.corner.dp),
         containerColor = glassFill()
     )
+}
+
+@Composable
+private fun SnoozeChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (selected) GlassPrimary else glassFill())
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            label,
+            fontSize = 12.sp,
+            color = if (selected) Color.White else textSecondary()
+        )
+    }
 }
 
 @Composable
@@ -334,10 +382,9 @@ private fun Wheel(
                         .height(ITEM_H),
                     contentAlignment = Alignment.Center
                 ) {
-                    val selected = state.firstVisibleItemIndex == i &&
-                            !state.isScrollInProgress
+                    val selected = state.firstVisibleItemIndex == i && !state.isScrollInProgress
                     Text(
-                        text = if (n < 10) "0$n" else "$n",
+                        text = if (n < 10) "0" + n else n.toString(),
                         fontSize = if (selected) 26.sp else 21.sp,
                         fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                         color = if (selected) textPrimary() else textSecondary(),
@@ -350,8 +397,13 @@ private fun Wheel(
 }
 
 private fun dayLabel(d: Int): String = when (d) {
-    1 -> "一"; 2 -> "二"; 3 -> "三"; 4 -> "四"
-    5 -> "五"; 6 -> "六"; else -> "日"
+    1 -> "一"
+    2 -> "二"
+    3 -> "三"
+    4 -> "四"
+    5 -> "五"
+    6 -> "六"
+    else -> "日"
 }
 
 private fun ringtoneName(ctx: android.content.Context, uri: String?): String {
