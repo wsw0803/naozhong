@@ -32,6 +32,15 @@ object AlarmFallback {
             val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             ensureChannel(nm)
 
+            // 兜底渠道被用户屏蔽时，退到响铃渠道，至少把界面弹出来
+            //（响铃渠道是静音的，没有声音，但能亮屏、能点开）
+            val channel = if (channelBlocked(context)) {
+                ensureRingChannel(nm)
+                AlarmService.CHANNEL_ID
+            } else {
+                CHANNEL_ID
+            }
+
             val openPi = PendingIntent.getActivity(
                 context,
                 9101,
@@ -65,7 +74,7 @@ object AlarmFallback {
                 flags()
             )
 
-            val noti = NotificationCompat.Builder(context, CHANNEL_ID)
+            val noti = NotificationCompat.Builder(context, channel)
                 .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
                 .setContentTitle("闹钟")
                 .setContentText(if (label.isBlank()) "时间到了" else label)
@@ -90,6 +99,21 @@ object AlarmFallback {
             val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             nm.cancel(NOTI_ID)
         } catch (_: Exception) {
+        }
+    }
+
+    /**
+     * 兜底渠道是否被用户屏蔽。
+     * 设置页的「权限自检」以后可以直接用它把兜底渠道也纳入检查。
+     */
+    fun channelBlocked(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
+        return try {
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val ch = nm.getNotificationChannel(CHANNEL_ID) ?: return false
+            ch.importance == NotificationManager.IMPORTANCE_NONE
+        } catch (_: Exception) {
+            false
         }
     }
 
@@ -123,6 +147,24 @@ object AlarmFallback {
                         .build()
                 )
             }
+        }
+        nm.createNotificationChannel(ch)
+    }
+
+    /** 响铃渠道正常由 AlarmService 创建；这里也保证它存在，免得通知发不出去。 */
+    private fun ensureRingChannel(nm: NotificationManager) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        if (nm.getNotificationChannel(AlarmService.CHANNEL_ID) != null) return
+        val ch = NotificationChannel(
+            AlarmService.CHANNEL_ID,
+            "闹钟响铃",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "闹钟正在响铃"
+            setSound(null, null)
+            enableVibration(false)
+            setShowBadge(false)
+            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
         }
         nm.createNotificationChannel(ch)
     }
