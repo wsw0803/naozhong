@@ -41,9 +41,21 @@ object NextAlarmNotifier {
         alarms.forEach { a ->
             if (a.enabled && (groupEnabled[a.groupId] ?: true)) {
                 val sn = SnoozeStore.get(context, a.id)
-                if (sn != null) { if (sn < bestTime) { bestTime = sn; bestAlarm = a; bestSnooze = sn }; return@forEach }
-                val t = nextTriggerIncludingPast(a, now)
-                if (t != null && t < bestTime) { bestTime = t; bestAlarm = a }
+                if (sn != null) {
+                    if (sn < bestTime) {
+                        bestTime = sn
+                        bestAlarm = a
+                        bestSnooze = sn
+                    }
+                    return@forEach
+                }
+                // 统一走同一个计算，一次性闹钟时间已过也会顺延到明天，
+                // 不会再出现「闹钟已开启但通知里什么都算不出来」的情况。
+                val t = a.nextTriggerAtMillis(now)
+                if (t != null && t < bestTime) {
+                    bestTime = t
+                    bestAlarm = a
+                }
             }
         }
 
@@ -63,7 +75,15 @@ object NextAlarmNotifier {
         groupName[alarm.groupId]?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
         if (alarm.label.isNotBlank()) parts.add(alarm.label)
         if (bestSnooze != null) parts.add("（延迟）")
-        safeNotify(nm, buildNotification(context, "wei❤️qian", if (parts.isEmpty()) "" else parts.joinToString(" · "), countDownTo = bestTime))
+        safeNotify(
+            nm,
+            buildNotification(
+                context,
+                "wei❤️qian",
+                if (parts.isEmpty()) "" else parts.joinToString(" · "),
+                countDownTo = bestTime
+            )
+        )
 
         scheduleAutoRefresh(context, bestTime)
     }
@@ -113,28 +133,6 @@ object NextAlarmNotifier {
             }
             .build()
         return noti
-    }
-
-    private fun nextTriggerIncludingPast(a: Alarm, now: Calendar): Long? {
-        if (a.repeatDays.isNotEmpty()) return a.nextTriggerAtMillis(now)
-        val cal = now.clone() as Calendar
-        cal.set(Calendar.HOUR_OF_DAY, a.hour)
-        cal.set(Calendar.MINUTE, a.minute)
-        cal.set(Calendar.SECOND, 0)
-        cal.set(Calendar.MILLISECOND, 0)
-        if (cal.timeInMillis <= now.timeInMillis) return null
-        return cal.timeInMillis
-    }
-
-    private fun remainingText(remainMs: Long): String {
-        if (remainMs <= 0) return "即将响铃"
-        val totalMin = remainMs / 60000L
-        return when {
-            totalMin < 1 -> "即将响铃"
-            totalMin < 60 -> "${totalMin}分钟后"
-            totalMin < 1440 -> "${totalMin / 60}小时${totalMin % 60}分钟后"
-            else -> "${totalMin / 1440}天${(totalMin % 1440) / 60}小时后"
-        }
     }
 
     private fun scheduleAutoRefresh(context: Context, triggerAt: Long) {

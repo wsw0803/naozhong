@@ -76,9 +76,15 @@ fun Alarm.nextTriggerAtMillis(now: java.util.Calendar): Long? {
     cal.set(java.util.Calendar.MILLISECOND, 0)
 
     if (repeatDays.isEmpty()) {
-        if (cal.timeInMillis <= from) return null
+        // 一次性闹钟：时间已过就顺延到明天，和系统时钟的行为一致。
+        // 原实现直接返回 null，于是「设成今天已经过去的时间」的闹钟
+        // 永远不会被登记，但列表里仍显示已开启 —— 用户完全看不出原因。
+        if (cal.timeInMillis <= from) {
+            cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+        }
         return cal.timeInMillis
     }
+
     for (i in 0..7) {
         val iso = ((cal.get(java.util.Calendar.DAY_OF_WEEK) + 5) % 7) + 1
         if (repeatDays.contains(iso) && cal.timeInMillis > from) return cal.timeInMillis
