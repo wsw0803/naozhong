@@ -54,6 +54,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -103,14 +104,18 @@ fun GroupScreen(
     var openedGroupId by remember { mutableStateOf<Long?>(null) }
     var applying by remember { mutableStateOf(false) }
 
-    // ---- 长按拖动排序状态 ----
-    // 注意：这些状态绝对不能出现在 pointerInput 的 key 里。
-    // pointerInput 的 key 一变就会重启手势协程，onDragStart 里刚改状态就被取消，
-    // 表现就是「按住能震动，但完全拖不动」。所以 key 只用 id。
+    // ---- 长按拖动排序 ----
+    // pointerInput 的 key 只用 id，绝不能带上会随拖动变化的状态：
+    // key 一变就会重启手势协程，onDragStart 刚设的状态立刻被丢弃，
+    // 表现就是「按住有震动，但完全拖不动」。
     var draggingId by remember { mutableStateOf<Long?>(null) }
     var dragOffset by remember { mutableStateOf(0f) }
     var targetIndex by remember { mutableStateOf(-1) }
     val heights = remember { mutableStateMapOf<Long, Int>() }
+
+    // pointerInput 块不会因 groups 变化重启，直接捕获会拿到旧列表；
+    // 用 rememberUpdatedState 保证手势里读到的永远是最新顺序。
+    val currentGroups by rememberUpdatedState(groups)
 
     val density = LocalDensity.current
     val spacingPx = with(density) { ItemSpacing.toPx() }
@@ -221,27 +226,29 @@ fun GroupScreen(
                                         detectDragGesturesAfterLongPress(
                                             onDragStart = {
                                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                val list = currentGroups
                                                 draggingId = id
                                                 dragOffset = 0f
-                                                targetIndex = groups.indexOfFirst { it.group.id == id }
+                                                targetIndex = list.indexOfFirst { it.group.id == id }
                                             },
                                             onDrag = { change, amount ->
                                                 change.consume()
                                                 dragOffset += amount.y
-                                                val from = groups.indexOfFirst { it.group.id == draggingId }
+                                                val list = currentGroups
+                                                val from = list.indexOfFirst { it.group.id == draggingId }
                                                 if (from < 0) return@detectDragGesturesAfterLongPress
                                                 var idx = from
                                                 if (dragOffset > 0f) {
                                                     var acc = 0f
-                                                    for (i in from + 1 until groups.size) {
-                                                        val h = heights[groups[i].group.id] ?: break
+                                                    for (i in from + 1 until list.size) {
+                                                        val h = heights[list[i].group.id] ?: break
                                                         acc += h + spacingPx
                                                         if (dragOffset > acc) idx = i else break
                                                     }
                                                 } else {
                                                     var acc = 0f
                                                     for (i in from - 1 downTo 0) {
-                                                        val h = heights[groups[i].group.id] ?: break
+                                                        val h = heights[list[i].group.id] ?: break
                                                         acc += h + spacingPx
                                                         if (-dragOffset > acc) idx = i else break
                                                     }
@@ -249,10 +256,11 @@ fun GroupScreen(
                                                 targetIndex = idx
                                             },
                                             onDragEnd = {
-                                                val from = groups.indexOfFirst { it.group.id == draggingId }
+                                                val list = currentGroups
+                                                val from = list.indexOfFirst { it.group.id == draggingId }
                                                 val to = targetIndex
                                                 if (from >= 0 && to >= 0 && from != to) {
-                                                    val reordered = groups.toMutableList()
+                                                    val reordered = list.toMutableList()
                                                     val moved = reordered.removeAt(from)
                                                     reordered.add(to.coerceIn(0, reordered.size), moved)
                                                     vm.reorderGroups(reordered.map { it.group.id })
@@ -328,10 +336,9 @@ private fun GroupCard(
             .clip(shape)
             .background(glassFill())
             .border(BorderStroke(1.dp, glassBorder()), shape)
-            // 用 clickable 而不是 detectTapGestures：
-            // detectTapGestures 会在按下瞬间 consume 掉事件，导致外层的
-            // detectDragGesturesAfterLongPress 收不到按下，长按拖动永远不触发。
-            // clickable 与长按拖动可以共存，且拖动时会自动取消点击。
+            // 这里必须是 clickable，不能用 detectTapGestures：
+            // detectTapGestures 在按下瞬间就 consume 事件，外层
+            // detectDragGesturesAfterLongPress 收不到按下，长按永远不触发。
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
