@@ -6,6 +6,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.RoomDatabase
+import androidx.room.Transaction
 import androidx.room.TypeConverters
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
@@ -45,6 +46,7 @@ interface AlarmDao {
 
     @Delete
     suspend fun deleteAlarm(alarm: Alarm)
+
     @Delete
     suspend fun deleteAlarms(alarms: List<Alarm>)
 
@@ -56,11 +58,26 @@ interface AlarmDao {
 
     @Query("UPDATE alarms SET enabled = :enabled WHERE id = :id")
     suspend fun setAlarmEnabled(id: Long, enabled: Boolean)
+
+    /** 写入单个分组的排序位。 */
+    @Query("UPDATE alarm_groups SET sortOrder = :sortOrder WHERE id = :id")
+    suspend fun updateGroupSortOrder(id: Long, sortOrder: Int)
+
+    /**
+     * 按传入顺序整体重排分组。
+     *
+     * 必须放在同一个事务里：逐条 update 会触发多次 Flow 刷新，
+     * 列表可能瞬间出现「两个分组同序号」的中间态，导致界面闪烁或顺序错乱。
+     */
+    @Transaction
+    suspend fun updateGroupSortOrders(orderedIds: List<Long>) {
+        orderedIds.forEachIndexed { index, id -> updateGroupSortOrder(id, index) }
+    }
 }
 
 /**
  * 注册类型转换器。
- * Set<Int> 这种 Room 不认识，必须靠 Converters 转成字符串。
+ * Set 这种 Room 不认识，必须靠 Converters 转成字符串。
  */
 @Database(
     entities = [AlarmGroup::class, Alarm::class],

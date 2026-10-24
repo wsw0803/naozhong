@@ -21,6 +21,7 @@ data class GroupWithAlarms(
 class AlarmViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo = (app as AlarmApp).repository
+
     init {
         refreshNextAlarmNotification()
     }
@@ -46,9 +47,7 @@ class AlarmViewModel(app: Application) : AndroidViewModel(app) {
 
     val grouped: StateFlow<List<GroupWithAlarms>> =
         combine(repo.groups, repo.alarms) { groups, alarms ->
-            groups.map { g ->
-                GroupWithAlarms(g, alarms.filter { it.groupId == g.id })
-            }
+            groups.map { g -> GroupWithAlarms(g, alarms.filter { it.groupId == g.id }) }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private suspend fun reschedule() {
@@ -63,8 +62,15 @@ class AlarmViewModel(app: Application) : AndroidViewModel(app) {
         repo.renameGroup(group, name)
     }
 
-    fun deleteGroup(group: AlarmGroup) = viewModelScope.launch {
-        repo.deleteGroup(group)
+    fun deleteGroup(group: AlarmGroup) = viewModelScope.launch { repo.deleteGroup(group) }
+
+    /**
+     * 长按拖动后保存新的分组顺序。
+     *
+     * 只改排序位，不影响闹钟本身，所以不需要 reschedule。
+     */
+    fun reorderGroups(orderedIds: List<Long>) = viewModelScope.launch {
+        repo.reorderGroups(orderedIds)
     }
 
     /** 分组一键总开关：组内闹钟各自开关保持不变。 */

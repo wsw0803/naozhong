@@ -8,7 +8,10 @@ class AlarmRepository(private val dao: AlarmDao) {
     val alarms: Flow<List<Alarm>> = dao.alarms()
 
     suspend fun addGroup(name: String): Long {
-        val next = dao.groupsOnce().size
+        // 用「当前最大序号 + 1」，不能再用 size：
+        // 分组重排后序号是 0..n-1 连续值，但删除过分组时 size 可能与最大值不一致，
+        // 直接拿 size 当序号会产生重复序号的并列项。
+        val next = (dao.groupsOnce().maxOfOrNull { it.sortOrder } ?: -1) + 1
         return dao.insertGroup(AlarmGroup(name = name, sortOrder = next))
     }
 
@@ -16,6 +19,9 @@ class AlarmRepository(private val dao: AlarmDao) {
         dao.updateGroup(group.copy(name = name))
 
     suspend fun deleteGroup(group: AlarmGroup) = dao.deleteGroup(group)
+
+    /** 按给定顺序把分组重排（长按拖动后调用）。 */
+    suspend fun reorderGroups(orderedIds: List<Long>) = dao.updateGroupSortOrders(orderedIds)
 
     suspend fun addAlarm(alarm: Alarm): Long = dao.insertAlarm(alarm)
 
@@ -33,8 +39,7 @@ class AlarmRepository(private val dao: AlarmDao) {
     suspend fun setGroupEnabled(groupId: Long, enabled: Boolean) =
         dao.setGroupEnabled(groupId, enabled)
 
-    suspend fun setAlarmEnabled(id: Long, enabled: Boolean) =
-        dao.setAlarmEnabled(id, enabled)
+    suspend fun setAlarmEnabled(id: Long, enabled: Boolean) = dao.setAlarmEnabled(id, enabled)
 
     suspend fun setAllEnabledInGroup(groupId: Long, enabled: Boolean) =
         dao.setAlarmsEnabledInGroup(groupId, enabled)
