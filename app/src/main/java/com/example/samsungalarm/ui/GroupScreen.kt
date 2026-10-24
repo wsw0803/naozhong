@@ -3,8 +3,10 @@ package com.example.samsungalarm.ui
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -88,6 +90,8 @@ import com.example.samsungalarm.ui.theme.textPrimary
 import com.example.samsungalarm.ui.theme.textSecondary
 import kotlinx.coroutines.delay
 
+private val ItemSpacing = 14.dp
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GroupScreen(
@@ -97,21 +101,19 @@ fun GroupScreen(
     val groups by vm.grouped.collectAsStateWithLifecycle()
     var showAddGroup by remember { mutableStateOf(false) }
     var openedGroupId by remember { mutableStateOf<Long?>(null) }
-    var selectionMode by remember { mutableStateOf(false) }
-    var selectedIds by remember { mutableStateOf(setOf<Long>()) }
     var applying by remember { mutableStateOf(false) }
 
     // ---- 长按拖动排序状态 ----
-    // 拖动期间用一份快照渲染，避免 Room 的 Flow 回调把顺序冲掉。
-    var dragSnapshot by remember { mutableStateOf<List<GroupWithAlarms>?>(null) }
+    // 注意：这些状态绝对不能出现在 pointerInput 的 key 里。
+    // pointerInput 的 key 一变就会重启手势协程，onDragStart 里刚改状态就被取消，
+    // 表现就是「按住能震动，但完全拖不动」。所以 key 只用 id。
     var draggingId by remember { mutableStateOf<Long?>(null) }
     var dragOffset by remember { mutableStateOf(0f) }
     var targetIndex by remember { mutableStateOf(-1) }
     val heights = remember { mutableStateMapOf<Long, Int>() }
 
-    val display = dragSnapshot ?: groups
     val density = LocalDensity.current
-    val spacingPx = with(density) { 14.dp.toPx() }
+    val spacingPx = with(density) { ItemSpacing.toPx() }
     val haptics = LocalHapticFeedback.current
 
     LaunchedEffect(applying) {
@@ -150,77 +152,33 @@ fun GroupScreen(
                 Scaffold(
                     containerColor = Color.Transparent,
                     topBar = {
-                        if (selectionMode) {
-                            TopAppBar(
-                                title = { Text("已选 " + selectedIds.size, color = textPrimary()) },
-                                navigationIcon = {
-                                    IconButton(onClick = {
-                                        selectionMode = false
-                                        selectedIds = emptySet()
-                                    }) {
-                                        Icon(
-                                            Icons.Default.Close,
-                                            contentDescription = "退出",
-                                            tint = textPrimary()
-                                        )
-                                    }
-                                },
-                                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
-                            )
-                        } else {
-                            TopAppBar(
-                                title = {
-                                    Column {
-                                        Text(
-                                            "闹钟分组",
-                                            fontWeight = FontWeight.Bold,
-                                            color = textPrimary()
-                                        )
-                                    }
-                                },
-                                actions = {
-                                    IconButton(onClick = onOpenSettings) {
-                                        Icon(
-                                            Icons.Default.Palette,
-                                            contentDescription = "外观设置",
-                                            tint = textPrimary()
-                                        )
-                                    }
-                                },
-                                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
-                            )
-                        }
-                    },
-                    bottomBar = {
-                        if (selectionMode) {
-                            BottomAppBar(containerColor = Color.Transparent) {
-                                TextButton(onClick = { selectedIds = groups.map { it.group.id }.toSet() }) {
-                                    Text("全选", color = textPrimary())
+                        TopAppBar(
+                            title = {
+                                Text(
+                                    "闹钟分组",
+                                    fontWeight = FontWeight.Bold,
+                                    color = textPrimary()
+                                )
+                            },
+                            actions = {
+                                IconButton(onClick = onOpenSettings) {
+                                    Icon(
+                                        Icons.Default.Palette,
+                                        contentDescription = "外观设置",
+                                        tint = textPrimary()
+                                    )
                                 }
-                                TextButton(onClick = {
-                                    val picked = groups.filter { selectedIds.contains(it.group.id) }
-                                    picked.forEach { vm.toggleGroup(it.group, true) }
-                                    selectionMode = false
-                                    selectedIds = emptySet()
-                                }) { Text("开启", color = textPrimary()) }
-                                TextButton(onClick = {
-                                    val picked = groups.filter { selectedIds.contains(it.group.id) }
-                                    picked.forEach { vm.toggleGroup(it.group, false) }
-                                    selectionMode = false
-                                    selectedIds = emptySet()
-                                }) { Text("关闭", color = textPrimary()) }
-                            }
-                        }
+                            },
+                            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                        )
                     },
                     floatingActionButton = {
-                        if (!selectionMode) {
-                            FloatingActionButton(
-                                onClick = { showAddGroup = true },
-                                containerColor = GlassPrimary,
-                                contentColor = Color.White
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = "新建分组")
-                            }
+                        FloatingActionButton(
+                            onClick = { showAddGroup = true },
+                            containerColor = GlassPrimary,
+                            contentColor = Color.White
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "新建分组")
                         }
                     }
                 ) { inner ->
@@ -229,20 +187,20 @@ fun GroupScreen(
                             .fillMaxSize()
                             .padding(inner)
                             .padding(horizontal = 14.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                        verticalArrangement = Arrangement.spacedBy(ItemSpacing)
                     ) {
                         item { Spacer(Modifier.height(2.dp)) }
 
-                        items(display, key = { it.group.id }) { entry ->
+                        items(groups, key = { it.group.id }) { entry ->
                             val id = entry.group.id
-                            val fromIndex = display.indexOfFirst { it.group.id == id }
+                            val fromIndex = groups.indexOfFirst { it.group.id == id }
                             val isDragging = draggingId == id
 
-                            // 拖动中：被拖的卡片跟手，其余卡片让位
                             val offsetY = when {
-                                !isDragging && draggingId != null -> {
-                                    val from = display.indexOfFirst { it.group.id == draggingId }
-                                    val draggedH = (heights[draggingId!!] ?: 0) + spacingPx
+                                isDragging -> dragOffset
+                                draggingId != null -> {
+                                    val from = groups.indexOfFirst { it.group.id == draggingId }
+                                    val draggedH = (heights[draggingId] ?: 0) + spacingPx
                                     when {
                                         from < 0 -> 0f
                                         targetIndex > from && fromIndex in (from + 1)..targetIndex -> -draggedH
@@ -250,7 +208,6 @@ fun GroupScreen(
                                         else -> 0f
                                     }
                                 }
-                                isDragging -> dragOffset
                                 else -> 0f
                             }
 
@@ -260,34 +217,31 @@ fun GroupScreen(
                                     .zIndex(if (isDragging) 1f else 0f)
                                     .graphicsLayer { translationY = offsetY }
                                     .onGloballyPositioned { heights[id] = it.size.height }
-                                    .pointerInput(id, selectionMode, dragSnapshot) {
-                                        // 长按进入拖动；多选模式下不响应拖动
-                                        if (selectionMode) return@pointerInput
+                                    .pointerInput(id) {
                                         detectDragGesturesAfterLongPress(
                                             onDragStart = {
                                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                dragSnapshot = groups
                                                 draggingId = id
                                                 dragOffset = 0f
-                                                targetIndex = display.indexOfFirst { it.group.id == id }
+                                                targetIndex = groups.indexOfFirst { it.group.id == id }
                                             },
                                             onDrag = { change, amount ->
                                                 change.consume()
                                                 dragOffset += amount.y
-                                                val from = display.indexOfFirst { it.group.id == draggingId }
+                                                val from = groups.indexOfFirst { it.group.id == draggingId }
                                                 if (from < 0) return@detectDragGesturesAfterLongPress
                                                 var idx = from
                                                 if (dragOffset > 0f) {
                                                     var acc = 0f
-                                                    for (i in from + 1 until display.size) {
-                                                        val h = heights[display[i].group.id] ?: break
+                                                    for (i in from + 1 until groups.size) {
+                                                        val h = heights[groups[i].group.id] ?: break
                                                         acc += h + spacingPx
                                                         if (dragOffset > acc) idx = i else break
                                                     }
                                                 } else {
                                                     var acc = 0f
                                                     for (i in from - 1 downTo 0) {
-                                                        val h = heights[display[i].group.id] ?: break
+                                                        val h = heights[groups[i].group.id] ?: break
                                                         acc += h + spacingPx
                                                         if (-dragOffset > acc) idx = i else break
                                                     }
@@ -295,10 +249,10 @@ fun GroupScreen(
                                                 targetIndex = idx
                                             },
                                             onDragEnd = {
-                                                val from = display.indexOfFirst { it.group.id == draggingId }
+                                                val from = groups.indexOfFirst { it.group.id == draggingId }
                                                 val to = targetIndex
                                                 if (from >= 0 && to >= 0 && from != to) {
-                                                    val reordered = display.toMutableList()
+                                                    val reordered = groups.toMutableList()
                                                     val moved = reordered.removeAt(from)
                                                     reordered.add(to.coerceIn(0, reordered.size), moved)
                                                     vm.reorderGroups(reordered.map { it.group.id })
@@ -306,38 +260,22 @@ fun GroupScreen(
                                                 draggingId = null
                                                 dragOffset = 0f
                                                 targetIndex = -1
-                                                dragSnapshot = null
                                             },
                                             onDragCancel = {
                                                 draggingId = null
                                                 dragOffset = 0f
                                                 targetIndex = -1
-                                                dragSnapshot = null
                                             }
                                         )
                                     }
                             ) {
                                 GroupCard(
                                     entry = entry,
-                                    selectionMode = selectionMode,
-                                    selected = selectedIds.contains(entry.group.id),
                                     dragging = isDragging,
-                                    onOpen = {
-                                        if (selectionMode) {
-                                            selectedIds = if (selectedIds.contains(entry.group.id))
-                                                selectedIds - entry.group.id
-                                            else selectedIds + entry.group.id
-                                        } else {
-                                            openedGroupId = entry.group.id
-                                        }
-                                    },
+                                    onOpen = { openedGroupId = entry.group.id },
                                     onToggleGroup = { on -> vm.toggleGroup(entry.group, on) },
                                     onRename = { name -> vm.renameGroup(entry.group, name) },
-                                    onDeleteGroup = { vm.deleteGroup(entry.group) },
-                                    onEnterSelection = {
-                                        selectionMode = true
-                                        selectedIds = selectedIds + entry.group.id
-                                    }
+                                    onDeleteGroup = { vm.deleteGroup(entry.group) }
                                 )
                             }
                         }
@@ -366,14 +304,11 @@ fun GroupScreen(
 @Composable
 private fun GroupCard(
     entry: GroupWithAlarms,
-    selectionMode: Boolean,
-    selected: Boolean,
     dragging: Boolean,
     onOpen: () -> Unit,
     onToggleGroup: (Boolean) -> Unit,
     onRename: (String) -> Unit,
-    onDeleteGroup: () -> Unit,
-    onEnterSelection: () -> Unit
+    onDeleteGroup: () -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
@@ -391,21 +326,20 @@ private fun GroupCard(
                 spotColor = glassShadow()
             )
             .clip(shape)
-            .background(if (selected) GlassPrimary.copy(alpha = 0.15f) else glassFill())
+            .background(glassFill())
             .border(BorderStroke(1.dp, glassBorder()), shape)
-            .pointerInput(selectionMode) {
-                detectTapGestures(onTap = { onOpen() })
-            }
+            // 用 clickable 而不是 detectTapGestures：
+            // detectTapGestures 会在按下瞬间 consume 掉事件，导致外层的
+            // detectDragGesturesAfterLongPress 收不到按下，长按拖动永远不触发。
+            // clickable 与长按拖动可以共存，且拖动时会自动取消点击。
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onOpen
+            )
             .padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            if (selectionMode) {
-                Checkbox(
-                    checked = selected,
-                    onCheckedChange = { onOpen() },
-                    colors = CheckboxDefaults.colors(checkedColor = GlassPrimary)
-                )
-            }
             Column(Modifier.weight(1f)) {
                 Text(
                     entry.group.name,
@@ -420,48 +354,36 @@ private fun GroupCard(
                 )
             }
 
-            if (!selectionMode) {
-                Icon(
-                    Icons.Default.DragHandle,
-                    contentDescription = "长按拖动排序",
-                    tint = textSecondary(),
-                    modifier = Modifier.size(18.dp)
-                )
-                Box {
-                    IconButton(onClick = { menu = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "更多", tint = textSecondary())
-                    }
-                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                        DropdownMenuItem(
-                            text = { Text("进入分组") },
-                            onClick = { menu = false; onOpen() }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("重命名分组") },
-                            onClick = { menu = false; renaming = true }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("多选管理") },
-                            onClick = { menu = false; onEnterSelection() }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("删除分组") },
-                            onClick = { menu = false; onDeleteGroup() }
-                        )
-                    }
+            Icon(
+                Icons.Default.DragHandle,
+                contentDescription = "长按拖动排序",
+                tint = textSecondary(),
+                modifier = Modifier.size(18.dp)
+            )
+            Box {
+                IconButton(onClick = { menu = true }) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "更多", tint = textSecondary())
                 }
-                Switch(
-                    checked = entry.group.enabled,
-                    onCheckedChange = onToggleGroup,
-                    colors = SwitchDefaults.colors(checkedTrackColor = GlassPrimary)
-                )
-            } else {
-                Text(
-                    if (entry.group.enabled) "已开启" else "已关闭",
-                    fontSize = 12.sp,
-                    color = if (entry.group.enabled) GlassPrimary else textSecondary()
-                )
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("进入分组") },
+                        onClick = { menu = false; onOpen() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("重命名分组") },
+                        onClick = { menu = false; renaming = true }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("删除分组") },
+                        onClick = { menu = false; onDeleteGroup() }
+                    )
+                }
             }
+            Switch(
+                checked = entry.group.enabled,
+                onCheckedChange = onToggleGroup,
+                colors = SwitchDefaults.colors(checkedTrackColor = GlassPrimary)
+            )
         }
     }
 
