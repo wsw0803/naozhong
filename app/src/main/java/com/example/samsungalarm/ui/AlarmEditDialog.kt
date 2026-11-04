@@ -31,6 +31,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -60,6 +61,21 @@ private val SNOOZE_CHOICES = listOf(5, 10, 15, 20, 30)
 /** 新建 / 编辑闹钟：滚轮和直接输入同页显示，两边双向同步。 */
 @Composable
 fun AlarmEditDialog(
+    alarm: Alarm?,
+    groupId: Long,
+    onDismiss: () -> Unit,
+    onSave: (Alarm) -> Unit
+) {
+    // 同一位置的对话框会被不同闹钟复用。按闹钟 id 给整段内容加 key，
+    // 换闹钟时滚轮、输入框、重复日等 remember 状态一起重建，
+    // 不会残留上一个闹钟的值。
+    key(alarm?.id) {
+        AlarmEditDialogContent(alarm, groupId, onDismiss, onSave)
+    }
+}
+
+@Composable
+private fun AlarmEditDialogContent(
     alarm: Alarm?,
     groupId: Long,
     onDismiss: () -> Unit,

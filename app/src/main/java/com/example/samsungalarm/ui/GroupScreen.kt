@@ -651,6 +651,16 @@ private fun GlassAlarmRow(
     val active = alarm.enabled && groupEnabled
     val shape = RoundedCornerShape(LocalGlassSettings.current.corner.dp)
 
+    // pointerInput 只在 key 变化时重启，块里的 lambda 不会跟着重组刷新，
+    // 直接捕获 onEdit 会一直用首次组合时的那个 Alarm 快照。
+    // 结果就是：改完时间再点编辑，弹出来还是上一次（第一次）的时间，
+    // 直接保存还会把新值改回旧值。
+    // 用 rememberUpdatedState 包一层，手势回调里读到的永远是最新回调。
+    val currentOnEdit by rememberUpdatedState(onEdit)
+    val currentOnLongPress by rememberUpdatedState(onLongPress)
+    val currentOnSelectToggle by rememberUpdatedState(onSelectToggle)
+    val currentSelectionMode by rememberUpdatedState(selectionMode)
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -660,8 +670,10 @@ private fun GlassAlarmRow(
             .border(BorderStroke(1.dp, glassBorder()), shape)
             .pointerInput(selectionMode) {
                 detectTapGestures(
-                    onTap = { if (selectionMode) onSelectToggle() else onEdit() },
-                    onLongPress = { onLongPress() }
+                    onTap = {
+                        if (currentSelectionMode) currentOnSelectToggle() else currentOnEdit()
+                    },
+                    onLongPress = { currentOnLongPress() }
                 )
             }
             .padding(horizontal = 12.dp, vertical = 10.dp)
