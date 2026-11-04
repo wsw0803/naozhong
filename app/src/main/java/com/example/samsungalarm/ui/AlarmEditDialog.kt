@@ -278,6 +278,12 @@ private fun AlarmEditDialogContent(
             TextButton(onClick = {
                 applyText()
                 val base = alarm ?: Alarm(groupId = groupId, hour = hour, minute = minute)
+                // 只有真的改动过才自动开启：打开看一眼再点保存的，保持原来的开关状态
+                val edited = alarm == null ||
+                    alarm.hour != hour || alarm.minute != minute ||
+                    alarm.label != label.trim() || alarm.vibrate != vibrate ||
+                    alarm.repeatDays != days || alarm.ringtoneUri != ringtone ||
+                    alarm.snoozeMinutes != snooze
                 onSave(
                     base.copy(
                         hour = hour,
@@ -287,9 +293,9 @@ private fun AlarmEditDialogContent(
                         repeatDays = days,
                         ringtoneUri = ringtone,
                         snoozeMinutes = snooze,
-                        // 编辑/保存完就默认启用：改时间的场景基本都是想让它真的响，
+                        // 改动过就默认启用：改时间的场景基本都是想让它真的响，
                         // 保留关闭状态很容易让人以为改了但其实没生效
-                        enabled = true
+                        enabled = if (edited) true else base.enabled
                     )
                 )
             }) {
