@@ -286,7 +286,10 @@ private fun AlarmEditDialogContent(
                         vibrate = vibrate,
                         repeatDays = days,
                         ringtoneUri = ringtone,
-                        snoozeMinutes = snooze
+                        snoozeMinutes = snooze,
+                        // 编辑/保存完就默认启用：改时间的场景基本都是想让它真的响，
+                        // 保留关闭状态很容易让人以为改了但其实没生效
+                        enabled = true
                     )
                 )
             }) {
