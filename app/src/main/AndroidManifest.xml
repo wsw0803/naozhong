@@ -41,6 +41,7 @@
 
         <activity
             android:name=".MainActivity"
+            android:excludeFromRecents="true"
             android:exported="true"
             android:showWhenLocked="true"
             android:turnScreenOn="true">
