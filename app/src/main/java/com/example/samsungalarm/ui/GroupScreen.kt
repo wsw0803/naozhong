@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -87,6 +88,8 @@ import com.example.samsungalarm.ui.theme.glassBorder
 import com.example.samsungalarm.ui.theme.glassFill
 import com.example.samsungalarm.ui.theme.glassShadow
 import com.example.samsungalarm.ui.theme.isDark
+import com.example.samsungalarm.ui.theme.TabularNums
+import com.example.samsungalarm.ui.theme.weightFor
 import com.example.samsungalarm.ui.theme.textPrimary
 import com.example.samsungalarm.ui.theme.textSecondary
 import kotlinx.coroutines.delay
@@ -161,7 +164,7 @@ fun GroupScreen(
                             title = {
                                 Text(
                                     "闹钟分组",
-                                    fontWeight = FontWeight.Bold,
+                                    fontWeight = weightFor(FontWeight.Bold),
                                     color = textPrimary()
                                 )
                             },
@@ -335,7 +338,6 @@ private fun GroupCard(
             )
             .clip(shape)
             .background(glassFill())
-            .border(BorderStroke(1.dp, glassBorder()), shape)
             // 这里必须是 clickable，不能用 detectTapGestures：
             // detectTapGestures 在按下瞬间就 consume 事件，外层
             // detectDragGesturesAfterLongPress 收不到按下，长按永远不触发。
@@ -351,7 +353,7 @@ private fun GroupCard(
                 Text(
                     entry.group.name,
                     fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = weightFor(FontWeight.SemiBold),
                     color = textPrimary()
                 )
                 Text(
@@ -365,7 +367,7 @@ private fun GroupCard(
                 Icons.Default.DragHandle,
                 contentDescription = "长按拖动排序",
                 tint = textSecondary(),
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(18.dp).offset(y = 2.dp)
             )
             Box {
                 IconButton(onClick = { menu = true }) {
@@ -470,7 +472,7 @@ private fun GroupDetailScreen(
                         title = {
                             Text(
                                 entry.group.name,
-                                fontWeight = FontWeight.Bold,
+                                fontWeight = weightFor(FontWeight.Bold),
                                 color = textPrimary()
                             )
                         },
@@ -567,7 +569,6 @@ private fun GroupDetailScreen(
                                 .fillMaxWidth()
                                 .clip(shape)
                                 .background(glassFill())
-                                .border(BorderStroke(1.dp, glassBorder()), shape)
                                 .padding(16.dp)
                         ) {
                             Text("这个分组还没有闹钟", fontSize = 14.sp, color = textSecondary())
@@ -667,7 +668,6 @@ private fun GlassAlarmRow(
             .fillMaxWidth()
             .clip(shape)
             .background(if (selected) GlassPrimary.copy(alpha = 0.15f) else glassFill())
-            .border(BorderStroke(1.dp, glassBorder()), shape)
             .pointerInput(selectionMode) {
                 detectTapGestures(
                     onTap = {
@@ -690,8 +690,9 @@ private fun GlassAlarmRow(
             Text(
                 String.format("%02d:%02d", alarm.hour, alarm.minute),
                 fontSize = 25.sp,
-                fontWeight = FontWeight.Medium,
-                color = if (active) textPrimary() else textSecondary()
+                fontWeight = weightFor(FontWeight.Medium),
+                color = if (active) textPrimary() else textSecondary(),
+                style = TabularNums
             )
             Text(
                 buildSubtitle(alarm) +

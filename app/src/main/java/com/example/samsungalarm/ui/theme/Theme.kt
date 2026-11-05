@@ -11,6 +11,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -202,3 +209,55 @@ fun AlarmTheme(
     }
     MaterialTheme(colorScheme = colors, content = content)
 }
+
+/**
+ * 无描边后的层级色：靠 1%~3% 的 alpha 差分层，不再画框。
+ * step 越大层级越高，卡片压在背景上时用 1，浮起元素用 2。
+ */
+@Composable
+fun glassLayer(step: Int = 1): Color {
+    val s = LocalGlassSettings.current
+    val delta = 0.015f * step
+    return if (isDark()) Color.White.copy(alpha = (0.02f + s.opacity * 0.28f + delta).coerceIn(0f, 1f))
+    else Color.White.copy(alpha = (0.04f + s.opacity * 0.66f + delta).coerceIn(0f, 1f))
+}
+
+/**
+ * 暗色下亮字有光晕扩散（halation），同样的字重看起来更粗更糊。
+ * 统一降一档：Bold→SemiBold，SemiBold/Medium→Normal，其余→Light。
+ */
+@Composable
+fun weightFor(base: FontWeight): FontWeight {
+    if (!isDark()) return base
+    return when (base) {
+        FontWeight.Black, FontWeight.ExtraBold, FontWeight.Bold -> FontWeight.SemiBold
+        FontWeight.SemiBold, FontWeight.Medium -> FontWeight.Normal
+        else -> FontWeight.Light
+    }
+}
+
+/** 等宽数字：数值刷新时字宽不变，不会左右抖。 */
+val TabularNums = TextStyle(fontFeatureSettings = "tnum")
+
+/**
+ * 输入框聚焦双环：外圈宽而淡的光晕做扩散，内圈一圈细咬合线，
+ * 替代硬描边高亮，边框摸起来是嵌套的而不是贴上去的。
+ */
+fun Modifier.focusDoubleRing(focused: Boolean, cornerDp: Float, accent: Color): Modifier =
+    this.drawBehind {
+        if (!focused) return@drawBehind
+        val r = cornerDp.dp.toPx()
+        val glow = 3.dp.toPx()
+        drawRoundRect(
+            color = accent.copy(alpha = 0.26f),
+            topLeft = Offset(-glow, -glow),
+            size = Size(size.width + glow * 2, size.height + glow * 2),
+            cornerRadius = CornerRadius(r + glow),
+            style = Stroke(width = glow)
+        )
+        drawRoundRect(
+            color = accent.copy(alpha = 0.62f),
+            cornerRadius = CornerRadius(r),
+            style = Stroke(width = 1.dp.toPx())
+        )
+    }

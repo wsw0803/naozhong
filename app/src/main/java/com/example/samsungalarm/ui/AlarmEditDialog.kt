@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -38,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -49,6 +51,9 @@ import com.example.samsungalarm.data.Alarm
 import com.example.samsungalarm.ui.LocalGlassSettings
 import com.example.samsungalarm.ui.theme.GlassPrimary
 import com.example.samsungalarm.ui.theme.glassFill
+import com.example.samsungalarm.ui.theme.TabularNums
+import com.example.samsungalarm.ui.theme.focusDoubleRing
+import com.example.samsungalarm.ui.theme.weightFor
 import com.example.samsungalarm.ui.theme.textPrimary
 import com.example.samsungalarm.ui.theme.textSecondary
 import java.util.Calendar
@@ -127,7 +132,7 @@ private fun AlarmEditDialogContent(
             Text(
                 if (alarm == null) "新建闹钟" else "编辑闹钟",
                 color = textPrimary(),
-                fontWeight = FontWeight.SemiBold
+                fontWeight = weightFor(FontWeight.SemiBold)
             )
         },
         text = {
@@ -149,7 +154,7 @@ private fun AlarmEditDialogContent(
                     Text(
                         ":",
                         fontSize = 30.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = weightFor(FontWeight.Bold),
                         color = textPrimary(),
                         modifier = Modifier.padding(horizontal = 10.dp)
                     )
@@ -166,6 +171,8 @@ private fun AlarmEditDialogContent(
 
                 Spacer(Modifier.height(12.dp))
 
+                // 聚焦双环：外圈淡光晕 + 内圈细咬合线，替代硬描边
+                var timeFocus by remember { mutableStateOf(false) }
                 OutlinedTextField(
                     value = textTime,
                     onValueChange = {
@@ -173,9 +180,16 @@ private fun AlarmEditDialogContent(
                         applyText()
                     },
                     singleLine = true,
+                    textStyle = TabularNums,
                     label = { Text("直接输入（小时:分钟）") },
                     placeholder = { Text("例如 07:30") },
                     modifier = Modifier.fillMaxWidth()
+                        .onFocusChanged { timeFocus = it.isFocused }
+                        .focusDoubleRing(timeFocus, 26f, GlassPrimary),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color.Transparent,
+                        unfocusedBorderColor = Color.Transparent
+                    )
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
@@ -208,12 +222,19 @@ private fun AlarmEditDialogContent(
 
                 Spacer(Modifier.height(14.dp))
 
+                var labelFocus by remember { mutableStateOf(false) }
                 OutlinedTextField(
                     value = label,
                     onValueChange = { label = it },
                     singleLine = true,
                     label = { Text("标签") },
                     modifier = Modifier.fillMaxWidth()
+                        .onFocusChanged { labelFocus = it.isFocused }
+                        .focusDoubleRing(labelFocus, 26f, GlassPrimary),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color.Transparent,
+                        unfocusedBorderColor = Color.Transparent
+                    )
                 )
 
                 Spacer(Modifier.height(14.dp))
@@ -411,7 +432,7 @@ private fun Wheel(
                     Text(
                         text = if (n < 10) "0" + n else n.toString(),
                         fontSize = if (selected) 26.sp else 21.sp,
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                        fontWeight = if (selected) weightFor(FontWeight.SemiBold) else weightFor(FontWeight.Normal,
                         color = if (selected) textPrimary() else textSecondary(),
                         textAlign = TextAlign.Center
                     )

@@ -132,7 +132,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             containerColor = Color.Transparent,
             topBar = {
                 TopAppBar(
-                    title = { Text("外观设置", fontWeight = FontWeight.SemiBold, color = textPrimary()) },
+                    title = { Text("外观设置", fontWeight = weightFor(FontWeight.SemiBold), color = textPrimary()) },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = textPrimary())
@@ -152,7 +152,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             ) {
                 // ---- 主题模式 ----
                 GlassPanel {
-                    Text("主题模式", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textPrimary())
+                    Text("主题模式", fontSize = 15.sp, fontWeight = weightFor(FontWeight.Medium), color = textPrimary())
                     Spacer(Modifier.height(2.dp))
                     Text("控制整体配色和字体颜色", fontSize = 11.sp, color = textSecondary())
                     Spacer(Modifier.height(10.dp))
@@ -165,7 +165,7 @@ fun SettingsScreen(onBack: () -> Unit) {
 
                 // ---- 权限自检 ----
                 GlassPanel {
-                    Text("权限自检", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textPrimary())
+                    Text("权限自检", fontSize = 15.sp, fontWeight = weightFor(FontWeight.Medium), color = textPrimary())
                     Spacer(Modifier.height(2.dp))
                     Text("缺哪个点哪项去开，开完回来会自动刷新", fontSize = 11.sp, color = textSecondary())
                     Spacer(Modifier.height(10.dp))
@@ -198,7 +198,7 @@ fun SettingsScreen(onBack: () -> Unit) {
 
                 // ---- 玻璃透明度 ----
                 GlassPanel {
-                    Text("玻璃透明度", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textPrimary())
+                    Text("玻璃透明度", fontSize = 15.sp, fontWeight = weightFor(FontWeight.Medium), color = textPrimary())
                     Spacer(Modifier.height(2.dp))
                     Text("越低越透，越高越接近实心卡片", fontSize = 11.sp, color = textSecondary())
                     Spacer(Modifier.height(10.dp))
@@ -216,7 +216,7 @@ fun SettingsScreen(onBack: () -> Unit) {
 
                 // ---- 背景 ----
                 GlassPanel {
-                    Text("背景图片", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textPrimary())
+                    Text("背景图片", fontSize = 15.sp, fontWeight = weightFor(FontWeight.Medium), color = textPrimary())
                     Spacer(Modifier.height(2.dp))
                     Text(
                         if (s.bgImageUri.isNullOrBlank()) "当前使用默认渐变背景" else "已设置自定义背景",
@@ -249,7 +249,7 @@ fun SettingsScreen(onBack: () -> Unit) {
 
                 // ---- 圆角 ----
                 GlassPanel {
-                    Text("卡片圆角", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textPrimary())
+                    Text("卡片圆角", fontSize = 15.sp, fontWeight = weightFor(FontWeight.Medium), color = textPrimary())
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Slider(
                             value = s.corner,
@@ -263,7 +263,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }
                 // ---- DPI ----
                 GlassPanel {
-                    Text("界面缩放 (DPI)", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textPrimary())
+                    Text("界面缩放 (DPI)", fontSize = 15.sp, fontWeight = weightFor(FontWeight.Medium), color = textPrimary())
 var localDpiScale by remember { mutableStateOf(s.dpiScale) }
 LaunchedEffect(s.dpiScale) { localDpiScale = s.dpiScale }
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -281,7 +281,7 @@ onValueChangeFinished = { store?.update(s.copy(dpiScale = localDpiScale)) },
 
                 // ---- 关于 ----
                 GlassPanel {
-                    Text("关于", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = textPrimary())
+                    Text("关于", fontSize = 15.sp, fontWeight = weightFor(FontWeight.Medium), color = textPrimary())
                     Spacer(Modifier.height(2.dp))
                     Text("闹钟 · 开源项目 · v" + BuildConfig.VERSION_NAME, fontSize = 11.sp, color = textSecondary())
                     Spacer(Modifier.height(10.dp))
@@ -317,7 +317,7 @@ onValueChangeFinished = { store?.update(s.copy(dpiScale = localDpiScale)) },
                             if (checking) "检查中…" else (updateMsg ?: "点击检查"),
                             fontSize = 13.sp,
                             color = if (newVersion != null) Color(0xFFE0533D) else GlassPrimary,
-                            fontWeight = FontWeight.Medium
+                            fontWeight = weightFor(FontWeight.Medium)
                         )
                     }
 
@@ -364,7 +364,7 @@ onValueChangeFinished = { store?.update(s.copy(dpiScale = localDpiScale)) },
                                 if (latest.apkUrl != null) "下载并安装新版" else "前往 Release 页面",
                                 fontSize = 13.sp, color = textPrimary(), modifier = Modifier.weight(1f)
                             )
-                            Text("下载 →", fontSize = 13.sp, color = GlassPrimary, fontWeight = FontWeight.Medium)
+                            Text("下载 →", fontSize = 13.sp, color = GlassPrimary, fontWeight = weightFor(FontWeight.Medium))
                         }
                     }
 
@@ -377,7 +377,7 @@ onValueChangeFinished = { store?.update(s.copy(dpiScale = localDpiScale)) },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text("GitHub 项目主页", fontSize = 13.sp, color = textPrimary(), modifier = Modifier.weight(1f))
-                        Text("前往 →", fontSize = 13.sp, color = GlassPrimary, fontWeight = FontWeight.Medium)
+                        Text("前往 →", fontSize = 13.sp, color = GlassPrimary, fontWeight = weightFor(FontWeight.Medium))
                     }
                 }
 
@@ -422,7 +422,7 @@ private fun PermRow(
                 false -> "去开启" to Color(0xFFE0533D)
                 null -> "去设置" to GlassPrimary
             }
-            Text(label, fontSize = 13.sp, color = color, fontWeight = FontWeight.Medium)
+            Text(label, fontSize = 13.sp, color = color, fontWeight = weightFor(FontWeight.Medium))
         }
         if (onConfirm != null) {
             TextButton(onClick = onConfirm, modifier = Modifier.padding(start = 4.dp)) {
@@ -442,7 +442,6 @@ private fun ThemeChip(text: String, selected: Boolean, onClick: () -> Unit) {
         modifier = Modifier
             .clip(RoundedCornerShape(10.dp))
             .background(if (selected) GlassPrimary else glassFill())
-            .border(BorderStroke(1.dp, if (selected) GlassPrimary else glassBorder()), RoundedCornerShape(10.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 9.dp)
     ) {
@@ -450,7 +449,7 @@ private fun ThemeChip(text: String, selected: Boolean, onClick: () -> Unit) {
             text,
             fontSize = 13.sp,
             color = if (selected) Color.White else textSecondary(),
-            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal
+            fontWeight = if (selected) weightFor(FontWeight.Medium) else weightFor(FontWeight.Normal)
         )
     }
 }
@@ -464,7 +463,6 @@ private fun GlassPanel(content: @Composable () -> Unit) {
             .shadow(10.dp, shape, clip = false, ambientColor = glassShadow(), spotColor = glassShadow())
             .clip(shape)
             .background(glassFill())
-            .border(BorderStroke(1.dp, glassBorder()), shape)
             .padding(16.dp)
     ) {
         content()
