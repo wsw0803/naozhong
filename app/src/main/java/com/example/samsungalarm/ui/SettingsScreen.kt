@@ -67,6 +67,7 @@ import com.example.samsungalarm.ui.theme.glassBorder
 import com.example.samsungalarm.ui.theme.glassFill
 import com.example.samsungalarm.ui.theme.glassShadow
 import com.example.samsungalarm.ui.theme.textPrimary
+import com.example.samsungalarm.ui.theme.weightFor
 import com.example.samsungalarm.ui.theme.textSecondary
 
 private const val GITHUB_URL = "https://github.com/wsw0803/naozhong"
