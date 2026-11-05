@@ -432,7 +432,7 @@ private fun Wheel(
                     Text(
                         text = if (n < 10) "0" + n else n.toString(),
                         fontSize = if (selected) 26.sp else 21.sp,
-                        fontWeight = if (selected) weightFor(FontWeight.SemiBold) else weightFor(FontWeight.Normal,
+                        fontWeight = if (selected) weightFor(FontWeight.SemiBold) else weightFor(FontWeight.Normal),
                         color = if (selected) textPrimary() else textSecondary(),
                         textAlign = TextAlign.Center
                     )
