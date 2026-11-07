@@ -8,6 +8,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -35,6 +38,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -42,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -102,6 +107,12 @@ private fun AlarmEditDialogContent(
         mutableStateOf(String.format("%02d:%02d", defHour, defMinute))
     }
 
+    val hourState = rememberLazyListState(initialFirstVisibleItemIndex = 24 * 100 + defHour)
+    val minuteState = rememberLazyListState(initialFirstVisibleItemIndex = 60 * 100 + defMinute)
+    var editingText by remember { mutableStateOf(false) }
+    var hourTarget by remember { mutableStateOf(defHour) }
+    var minuteTarget by remember { mutableStateOf(defMinute) }
+
     val ctx = LocalContext.current
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -122,6 +133,8 @@ private fun AlarmEditDialogContent(
             if (ph != null && pm != null && ph in 0..23 && pm in 0..59) {
                 hour = ph
                 minute = pm
+                hourTarget = ph
+                minuteTarget = pm
             }
         }
     }
@@ -144,11 +157,15 @@ private fun AlarmEditDialogContent(
                 ) {
                     Wheel(
                         count = 24,
-                        value = hour,
+                        value = hourTarget,
+                        state = hourState,
+                        onInteraction = { editingText = false },
                         modifier = Modifier.width(76.dp),
                         onChanged = {
-                            hour = it
-                            textTime = String.format("%02d:%02d", hour, minute)
+                            if (!editingText) {
+                                hour = it
+                                textTime = String.format("%02d:%02d", hour, minute)
+                            }
                         }
                     )
                     Text(
@@ -160,11 +177,15 @@ private fun AlarmEditDialogContent(
                     )
                     Wheel(
                         count = 60,
-                        value = minute,
+                        value = minuteTarget,
+                        state = minuteState,
+                        onInteraction = { editingText = false },
                         modifier = Modifier.width(76.dp),
                         onChanged = {
-                            minute = it
-                            textTime = String.format("%02d:%02d", hour, minute)
+                            if (!editingText) {
+                                minute = it
+                                textTime = String.format("%02d:%02d", hour, minute)
+                            }
                         }
                     )
                 }
@@ -176,6 +197,7 @@ private fun AlarmEditDialogContent(
                 OutlinedTextField(
                     value = textTime,
                     onValueChange = {
+                        editingText = true
                         textTime = it
                         applyText()
                     },
@@ -297,7 +319,14 @@ private fun AlarmEditDialogContent(
         },
         confirmButton = {
             TextButton(onClick = {
-                applyText()
+                // 直接读当前画面中心的格子，不等待惯性滚动或异步回调结束。
+                // 手输时使用已解析的时间，避免被尚未完成定位的滚轮覆盖。
+                if (editingText) {
+                    applyText()
+                } else {
+                    hour = hourState.centerValue(24)
+                    minute = minuteState.centerValue(60)
+                }
                 val base = alarm ?: Alarm(groupId = groupId, hour = hour, minute = minute)
                 // 只有真的改动过才自动开启：打开看一眼再点保存的，保持原来的开关状态
                 val edited = alarm == null ||
@@ -374,6 +403,8 @@ private fun DayChip(label: String, selected: Boolean, onClick: () -> Unit) {
 private fun Wheel(
     count: Int,
     value: Int,
+    state: LazyListState,
+    onInteraction: () -> Unit,
     modifier: Modifier = Modifier,
     onChanged: (Int) -> Unit
 ) {
@@ -382,26 +413,27 @@ private fun Wheel(
     val loops = 200
     val total = count * loops
     val center = count * (loops / 2)
-    val state = rememberLazyListState(initialFirstVisibleItemIndex = center + value)
+    val currentOnChanged by rememberUpdatedState(onChanged)
+    val currentOnInteraction by rememberUpdatedState(onInteraction)
     var syncing by remember { mutableStateOf(false) }
 
-    // 外部改值（输入框或另一侧滚轮）时同步滚动过去
+    // 输入框改值时立即终止旧惯性，再定位到输入的时间。
     LaunchedEffect(value, count) {
-        if (!state.isScrollInProgress && state.firstVisibleItemIndex % count != value) {
+        if (state.isScrollInProgress || state.centerValue(count) != value) {
             syncing = true
-            state.scrollToItem(center + value)
-            syncing = false
+            try {
+                state.scrollToItem(center + value)
+            } finally {
+                syncing = false
+            }
         }
     }
 
-    // 停稳后回写选中值
+    // 滚动时持续回写，并使用最新回调，避免小时/分钟互相覆盖为旧值。
     LaunchedEffect(state, count) {
-        snapshotFlow { state.isScrollInProgress }
-            .collect { scrolling ->
-                if (!scrolling && !syncing) {
-                    val idx = ((state.firstVisibleItemIndex % count) + count) % count
-                    onChanged(idx)
-                }
+        snapshotFlow { state.centerValue(count) to state.isScrollInProgress }
+            .collect { (selected, _) ->
+                if (!syncing) currentOnChanged(selected)
             }
     }
 
@@ -416,7 +448,12 @@ private fun Wheel(
         )
         LazyColumn(
             state = state,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    currentOnInteraction()
+                }
+            },
             contentPadding = PaddingValues(vertical = ITEM_H * 2),
             flingBehavior = rememberSnapFlingBehavior(lazyListState = state)
         ) {
@@ -428,7 +465,7 @@ private fun Wheel(
                         .height(ITEM_H),
                     contentAlignment = Alignment.Center
                 ) {
-                    val selected = state.firstVisibleItemIndex == i && !state.isScrollInProgress
+                    val selected = state.centerValue(count) == n
                     Text(
                         text = if (n < 10) "0" + n else n.toString(),
                         fontSize = if (selected) 26.sp else 21.sp,
@@ -440,6 +477,16 @@ private fun Wheel(
             }
         }
     }
+}
+
+// contentPadding 也属于 viewport：用可见项的几何中心选值，兼容半格和首尾循环。
+private fun LazyListState.centerValue(count: Int): Int {
+    val layout = layoutInfo
+    val middle = (layout.viewportStartOffset + layout.viewportEndOffset) / 2
+    val item = layout.visibleItemsInfo.minByOrNull {
+        kotlin.math.abs(it.offset + it.size / 2 - middle)
+    }
+    return (item?.index ?: firstVisibleItemIndex) % count
 }
 
 private fun dayLabel(d: Int): String = when (d) {
