@@ -112,6 +112,7 @@ private fun AlarmEditDialogContent(
     var editingText by remember { mutableStateOf(false) }
     var hourTarget by remember { mutableStateOf(defHour) }
     var minuteTarget by remember { mutableStateOf(defMinute) }
+    var textRevision by remember { mutableStateOf(0) }
 
     val ctx = LocalContext.current
     val picker = rememberLauncherForActivityResult(
@@ -135,6 +136,7 @@ private fun AlarmEditDialogContent(
                 minute = pm
                 hourTarget = ph
                 minuteTarget = pm
+                textRevision++
             }
         }
     }
@@ -159,6 +161,7 @@ private fun AlarmEditDialogContent(
                         count = 24,
                         value = hourTarget,
                         state = hourState,
+                        textRevision = textRevision,
                         onInteraction = { editingText = false },
                         modifier = Modifier.width(76.dp),
                         onChanged = {
@@ -179,6 +182,7 @@ private fun AlarmEditDialogContent(
                         count = 60,
                         value = minuteTarget,
                         state = minuteState,
+                        textRevision = textRevision,
                         onInteraction = { editingText = false },
                         modifier = Modifier.width(76.dp),
                         onChanged = {
@@ -404,6 +408,7 @@ private fun Wheel(
     count: Int,
     value: Int,
     state: LazyListState,
+    textRevision: Int,
     onInteraction: () -> Unit,
     modifier: Modifier = Modifier,
     onChanged: (Int) -> Unit
@@ -418,7 +423,7 @@ private fun Wheel(
     var syncing by remember { mutableStateOf(false) }
 
     // 输入框改值时立即终止旧惯性，再定位到输入的时间。
-    LaunchedEffect(value, count) {
+    LaunchedEffect(value, count, textRevision) {
         if (state.isScrollInProgress || state.centerValue(count) != value) {
             syncing = true
             try {
